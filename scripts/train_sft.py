@@ -8,6 +8,7 @@ from tqdm import tqdm
 import os
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
+import argparse
 run_name = datetime.now().strftime("%Y%m%d-%H%M%S")
 
 writer = SummaryWriter(log_dir=os.path.join("../output", "preference_sft", run_name))
@@ -37,8 +38,8 @@ def finetune_model():
     model.to(device)
     model.train()
 
-    train_dataloader = get_dataloader(split="train", batch_size=2, num_workers=4)
-    eval_dataloader = get_dataloader(split="test", batch_size=2, shuffle=False, num_workers=4)
+    train_dataloader = get_dataloader(split="train", batch_size=args.batch_size, num_workers=4)
+    eval_dataloader = get_dataloader(split="test", batch_size=args.batch_size, shuffle=False, num_workers=4)
     optimizer = optim.AdamW(model.parameters(), lr=5e-5)
 
     num_epochs = 3
@@ -74,5 +75,11 @@ def finetune_model():
     tokenizer.save_pretrained(output_dir)
     writer.close()
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Fine-tune a causal LM with SFT data.")
+    parser.add_argument("--batch_size", type=int, default=4, help="Batch size for training and evaluation.")
+    return parser.parse_args()
+
 if __name__ == "__main__":
+    args = parse_args()
     finetune_model()
