@@ -74,7 +74,6 @@ def get_dataloader(split="train", batch_size=64, shuffle=True):
     )
     return dataloader
 
-# Example usage
 if __name__ == "__main__":
     dl = get_dataloader()
     for batch in dl:

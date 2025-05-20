@@ -9,7 +9,6 @@ import os
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 run_name = datetime.now().strftime("%Y%m%d-%H%M%S")
-writer = SummaryWriter(log_dir=os.path.join("runs", f"sft_qwen_{run_name}"))
 
 writer = SummaryWriter(log_dir=os.path.join("../output", "preference_sft", run_name))
 
