@@ -15,17 +15,14 @@ run_name = datetime.now().strftime("%Y%m%d-%H%M%S")
 
 writer = SummaryWriter(log_dir=os.path.join("../output", "preference_sft", run_name))
 
-
 def setup_ddp():
     dist.init_process_group(backend="nccl")
     local_rank = int(os.environ["LOCAL_RANK"])
     torch.cuda.set_device(local_rank)
     return local_rank
-
-
+ 
 def cleanup():
     dist.destroy_process_group()
-
 
 def evaluate(model, dataloader, device, global_step):
     model.eval()
@@ -46,6 +43,8 @@ def evaluate(model, dataloader, device, global_step):
 
 
 def finetune_model():
+    checkpoint_dir = f"../checkpoints/preference_sft_{args.save_name}"
+    os.makedirs(checkpoint_dir, exist_ok=True)
     local_rank = setup_ddp()
     device = torch.device("cuda", local_rank)
 
@@ -60,6 +59,9 @@ def finetune_model():
 
     num_epochs = args.num_epochs
     global_step = 0
+    early_stop_patience = 20
+    best_eval_loss = float("inf")
+    early_stop_counter = 0
     for epoch in range(num_epochs):
         pbar = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{num_epochs}", disable=local_rank != 0)
         for batch in pbar:
@@ -75,15 +77,33 @@ def finetune_model():
             if local_rank == 0:
                 writer.add_scalar("Loss/train", loss.item(), global_step)
                 pbar.set_postfix({"loss": loss.item()})
+            if global_step % 1000 == 0 and local_rank == 0:
+                eval_loss = evaluate(model, eval_dataloader, device, global_step)
+                writer.add_scalar("Loss/eval", eval_loss, global_step)
+                print(f"Step {global_step} Eval Loss: {eval_loss:.4f}")
+
+                if eval_loss < best_eval_loss:
+                    best_eval_loss = eval_loss
+                    early_stop_counter = 0
+
+                    # Save checkpoint
+                    model.module.save_pretrained(os.path.join(checkpoint_dir, f"step_{global_step}"))
+                    tokenizer.save_pretrained(os.path.join(checkpoint_dir, f"step_{global_step}"))
+                else:
+                    early_stop_counter += 1
+                    if early_stop_counter >= early_stop_patience:
+                        print("Early stopping triggered.")
+                        break
+
             global_step += 1
 
-        if local_rank == 0:
-            eval_loss = evaluate(model, eval_dataloader, device, global_step)
-            print(f"Epoch {epoch+1} Eval Loss: {eval_loss:.4f}")
+        # if local_rank == 0:
+        #     eval_loss = evaluate(model, eval_dataloader, device, global_step)
+        #     print(f"Epoch {epoch+1} Eval Loss: {eval_loss:.4f}")
 
     if local_rank == 0:
-        model.module.save_pretrained("./preference_sft")
-        tokenizer.save_pretrained("./preference_sft")
+        model.module.save_pretrained(os.path.join(checkpoint_dir, f"step_{global_step}"))
+        tokenizer.save_pretrained(os.path.join(checkpoint_dir, f"step_{global_step}"))
         writer.close()
 
     cleanup()
@@ -95,6 +115,7 @@ def parse_args():
     parser.add_argument("--learning_rate", type=float, default=1e-5, help="Learning rate for the optimizer.")
     parser.add_argument("--num_workers", type=int, default=1, help="Number of workers for data loading.")
     parser.add_argument("--debug_mode", action="store_true", help="Enable debug mode for small dataset.")
+    parser.add_argument("--save_name", type=str, default=f'{run_name}', help="Name of the model to save.")
     return parser.parse_args()
 
 if __name__ == "__main__":
