@@ -76,7 +76,7 @@ def finetune_model():
 
             writer.add_scalar("Loss/train", loss.item(), global_step)
             pbar.set_postfix({"loss": loss.item()})
-            if global_step % 1000 == 0 and global_step !=0 :
+            if global_step % 1000 == 0:
                 eval_loss = evaluate(model, eval_dataloader, device, global_step)
                 print(f"Step {global_step} Eval Loss: {eval_loss:.4f}")
 
