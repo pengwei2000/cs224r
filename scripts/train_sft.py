@@ -6,6 +6,7 @@ from transformers import AutoModelForCausalLM
 from data.sft_data_pipeline import get_dataloader, tokenizer, MODEL_NAME
 from tqdm import tqdm
 import os
+from peft import get_peft_model, LoraConfig, TaskType
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 import argparse
@@ -37,8 +38,18 @@ def finetune_model():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, trust_remote_code=True)
-    model.config.pad_token_id = tokenizer.pad_token_id
+    base_model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, trust_remote_code=True)
+    base_model.config.pad_token_id = tokenizer.pad_token_id
+
+    lora_config = LoraConfig(
+        r=16,
+        lora_alpha=16,
+        lora_dropout=0.05,
+        bias="none",
+        task_type=TaskType.CAUSAL_LM
+    )
+    model = get_peft_model(base_model, lora_config)
+    model.print_trainable_parameters()
     model.to(device)
     model.train()
 
@@ -65,7 +76,7 @@ def finetune_model():
 
             writer.add_scalar("Loss/train", loss.item(), global_step)
             pbar.set_postfix({"loss": loss.item()})
-            if global_step % 1000 == 0:
+            if global_step % 1000 == 0 and global_step !=0 :
                 eval_loss = evaluate(model, eval_dataloader, device, global_step)
                 print(f"Step {global_step} Eval Loss: {eval_loss:.4f}")
 
@@ -74,7 +85,7 @@ def finetune_model():
                     early_stop_counter = 0
 
                     # Save checkpoint
-                    model.module.save_pretrained(os.path.join(checkpoint_dir, f"step_{global_step}"))
+                    model.save_pretrained(os.path.join(checkpoint_dir, f"step_{global_step}"))
                     tokenizer.save_pretrained(os.path.join(checkpoint_dir, f"step_{global_step}"))
                 else:
                     early_stop_counter += 1

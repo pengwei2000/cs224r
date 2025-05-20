@@ -18,7 +18,7 @@ class SmolTalkDataset(Dataset):
     def __init__(self, split: str = "train", max_length: int = 576, debug_mode: bool = False):
         self.dataset = load_dataset(DATASET_NAME, split=split)
         if debug_mode:
-            self.dataset = self.dataset.select(range(100))
+            self.dataset = self.dataset.select(range(2000))
         self.max_length = max_length
 
     def __len__(self):
