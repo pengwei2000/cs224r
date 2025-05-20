@@ -37,8 +37,8 @@ def finetune_model():
     model.to(device)
     model.train()
 
-    train_dataloader = get_dataloader(split="train", batch_size=2)
-    eval_dataloader = get_dataloader(split="test", batch_size=2, shuffle=False)
+    train_dataloader = get_dataloader(split="train", batch_size=2, num_workers=4)
+    eval_dataloader = get_dataloader(split="test", batch_size=2, shuffle=False, num_workers=4)
     optimizer = optim.AdamW(model.parameters(), lr=5e-5)
 
     num_epochs = 3
@@ -65,8 +65,8 @@ def finetune_model():
             pbar.set_postfix({"loss": loss.item()})
 
             # Run evaluation after each epoch
-            eval_loss = evaluate(model, eval_dataloader, device, global_step)
-            print(f"Evaluation loss after epoch {epoch+1}: {eval_loss:.4f}")
+        eval_loss = evaluate(model, eval_dataloader, device, global_step)
+        print(f"Evaluation loss after epoch {epoch+1}: {eval_loss:.4f}")
 
     output_dir = "./qwen2.5-finetuned"
     os.makedirs(output_dir, exist_ok=True)
