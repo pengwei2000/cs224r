@@ -41,7 +41,7 @@ def finetune_model():
 
     train_dataloader = get_dataloader(split="train", batch_size=args.batch_size, num_workers=1)
     eval_dataloader = get_dataloader(split="test", batch_size=args.batch_size, shuffle=False, num_workers=1)
-    optimizer = optim.AdamW(model.parameters(), lr=5e-5)
+    optimizer = optim.AdamW(model.parameters(), lr=1e-5)
 
     num_epochs = 3
     global_step = 0
@@ -56,7 +56,9 @@ def finetune_model():
                 labels=batch["labels"]
             )
 
-            loss = outputs.loss
+            loss = outputs.loss.mean()
+            if loss.isnan().any():
+                print("Loss is NaN, skipping this batch.")
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
