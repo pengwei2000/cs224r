@@ -1,5 +1,7 @@
 import torch
 from torch import nn, optim
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
 import sys
 sys.path.append("..")
 from transformers import AutoModelForCausalLM
@@ -9,10 +11,18 @@ import os
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 import argparse
-
 run_name = datetime.now().strftime("%Y%m%d-%H%M%S")
 
 writer = SummaryWriter(log_dir=os.path.join("../output", "preference_sft", run_name))
+
+def setup_ddp():
+    dist.init_process_group(backend="nccl")
+    local_rank = int(os.environ["LOCAL_RANK"])
+    torch.cuda.set_device(local_rank)
+    return local_rank
+ 
+def cleanup():
+    dist.destroy_process_group()
 
 def evaluate(model, dataloader, device, global_step):
     model.eval()
@@ -26,7 +36,8 @@ def evaluate(model, dataloader, device, global_step):
             total_loss += loss.item() * batch["input_ids"].size(0)
             count += batch["input_ids"].size(0)
     avg_loss = total_loss / count
-    writer.add_scalar("Loss/eval", avg_loss, global_step)
+    if dist.get_rank() == 0:
+        writer.add_scalar("Loss/eval", avg_loss, global_step)
     model.train()
     return avg_loss
 
@@ -34,13 +45,14 @@ def evaluate(model, dataloader, device, global_step):
 def finetune_model():
     checkpoint_dir = f"../checkpoints/preference_sft_{args.save_name}"
     os.makedirs(checkpoint_dir, exist_ok=True)
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    local_rank = setup_ddp()
+    device = torch.device("cuda", local_rank)
 
     model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, trust_remote_code=True)
     model.config.pad_token_id = tokenizer.pad_token_id
     model.to(device)
     model.train()
+    model = DDP(model, device_ids=[local_rank])
 
     train_dataloader = get_dataloader(split="train", batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, debug_mode=args.debug_mode, max_length=args.max_length)
     eval_dataloader = get_dataloader(split="test", batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, debug_mode=args.debug_mode, max_length=args.max_length)
@@ -52,21 +64,23 @@ def finetune_model():
     best_eval_loss = float("inf")
     early_stop_counter = 0
     for epoch in range(num_epochs):
-        pbar = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{num_epochs}")
+        pbar = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{num_epochs}", disable=local_rank != 0)
         for batch in pbar:
             batch = {k: v.to(device) for k, v in batch.items()}
             outputs = model(**batch)
-            loss = outputs.loss
+            loss = outputs.loss.mean()
             if loss.isnan().any():
                 print("Loss is NaN, global step:", global_step)
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
 
-            writer.add_scalar("Loss/train", loss.item(), global_step)
-            pbar.set_postfix({"loss": loss.item()})
-            if global_step % 1000 == 0:
+            if local_rank == 0:
+                writer.add_scalar("Loss/train", loss.item(), global_step)
+                pbar.set_postfix({"loss": loss.item()})
+            if global_step % 1000 == 0 and local_rank == 0:
                 eval_loss = evaluate(model, eval_dataloader, device, global_step)
+                writer.add_scalar("Loss/eval", eval_loss, global_step)
                 print(f"Step {global_step} Eval Loss: {eval_loss:.4f}")
 
                 if eval_loss < best_eval_loss:
@@ -84,10 +98,16 @@ def finetune_model():
 
             global_step += 1
 
-    model.module.save_pretrained(os.path.join(checkpoint_dir, f"step_{global_step}"))
-    tokenizer.save_pretrained(os.path.join(checkpoint_dir, f"step_{global_step}"))
-    writer.close()
+        # if local_rank == 0:
+        #     eval_loss = evaluate(model, eval_dataloader, device, global_step)
+        #     print(f"Epoch {epoch+1} Eval Loss: {eval_loss:.4f}")
 
+    if local_rank == 0:
+        model.module.save_pretrained(os.path.join(checkpoint_dir, f"step_{global_step}"))
+        tokenizer.save_pretrained(os.path.join(checkpoint_dir, f"step_{global_step}"))
+        writer.close()
+
+    cleanup()
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Fine-tune a causal LM with SFT data.")
