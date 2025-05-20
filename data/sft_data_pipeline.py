@@ -15,8 +15,10 @@ if tokenizer.pad_token is None:
 
 # Custom dataset class
 class SmolTalkDataset(Dataset):
-    def __init__(self, split: str = "train", max_length: int = 576):
+    def __init__(self, split: str = "train", max_length: int = 576, debug_mode: bool = False):
         self.dataset = load_dataset(DATASET_NAME, split=split)
+        if debug_mode:
+            self.dataset = self.dataset.select(range(100))
         self.max_length = max_length
 
     def __len__(self):
@@ -64,8 +66,8 @@ def collate_fn(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
     }
 
 # Function to get DataLoader
-def get_dataloader(split="train", batch_size=64, shuffle=True, num_workers=4):
-    dataset = SmolTalkDataset(split=split)
+def get_dataloader(split="train", batch_size=64, shuffle=True, num_workers=4, debug_mode=False):
+    dataset = SmolTalkDataset(split=split, debug_mode=debug_mode)
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
