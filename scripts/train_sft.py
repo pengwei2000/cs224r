@@ -1,5 +1,7 @@
 import torch
 from torch import nn, optim
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
 import sys
 sys.path.append("..")
 from transformers import AutoModelForCausalLM
@@ -13,6 +15,18 @@ run_name = datetime.now().strftime("%Y%m%d-%H%M%S")
 
 writer = SummaryWriter(log_dir=os.path.join("../output", "preference_sft", run_name))
 
+
+def setup_ddp():
+    dist.init_process_group(backend="nccl")
+    local_rank = int(os.environ["LOCAL_RANK"])
+    torch.cuda.set_device(local_rank)
+    return local_rank
+
+
+def cleanup():
+    dist.destroy_process_group()
+
+
 def evaluate(model, dataloader, device, global_step):
     model.eval()
     total_loss = 0
@@ -20,63 +34,58 @@ def evaluate(model, dataloader, device, global_step):
     with torch.no_grad():
         for batch in dataloader:
             batch = {k: v.to(device) for k, v in batch.items()}
-            outputs = model(
-                input_ids=batch["input_ids"],
-                attention_mask=batch["attention_mask"],
-                labels=batch["labels"]
-            )
-            total_loss += outputs.loss.item() * batch["input_ids"].size(0)
+            outputs = model(**batch)
+            loss = outputs.loss
+            total_loss += loss.item() * batch["input_ids"].size(0)
             count += batch["input_ids"].size(0)
     avg_loss = total_loss / count
-    writer.add_scalar("Loss/eval", avg_loss, global_step)
+    if dist.get_rank() == 0:
+        writer.add_scalar("Loss/eval", avg_loss, global_step)
     model.train()
     return avg_loss
 
-def finetune_model():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, trust_remote_code=True)
-    model = nn.DataParallel(model)
-    model.to(device)
-    model.train()
 
-    train_dataloader = get_dataloader(split="train", batch_size=args.batch_size, num_workers=1)
-    eval_dataloader = get_dataloader(split="test", batch_size=args.batch_size, shuffle=False, num_workers=1)
+def finetune_model():
+    local_rank = setup_ddp()
+    device = torch.device("cuda", local_rank)
+
+    model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, trust_remote_code=True)
+    model.to(device)
+    model = DDP(model, device_ids=[local_rank])
+
+    train_dataloader = get_dataloader(split="train", batch_size=4, shuffle=True)
+    eval_dataloader = get_dataloader(split="validation", batch_size=4, shuffle=False)
     optimizer = optim.AdamW(model.parameters(), lr=1e-5)
 
     num_epochs = 3
     global_step = 0
     for epoch in range(num_epochs):
-        pbar = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{num_epochs}")
+        pbar = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{num_epochs}", disable=local_rank != 0)
         for batch in pbar:
             batch = {k: v.to(device) for k, v in batch.items()}
-
-            outputs = model(
-                input_ids=batch["input_ids"],
-                attention_mask=batch["attention_mask"],
-                labels=batch["labels"]
-            )
-
+            outputs = model(**batch)
             loss = outputs.loss.mean()
             if loss.isnan().any():
-                print("Loss is NaN, skipping this batch.")
+                print("Loss is NaN, global step:", global_step)
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
 
-            writer.add_scalar("Loss/train", loss.item(), global_step)
+            if local_rank == 0:
+                writer.add_scalar("Loss/train", loss.item(), global_step)
+                pbar.set_postfix({"loss": loss.item()})
             global_step += 1
 
-            pbar.set_postfix({"loss": loss.item()})
+        if local_rank == 0:
+            eval_loss = evaluate(model, eval_dataloader, device, global_step)
+            print(f"Epoch {epoch+1} Eval Loss: {eval_loss:.4f}")
 
-            # Run evaluation after each epoch
-        eval_loss = evaluate(model, eval_dataloader, device, global_step)
-        print(f"Evaluation loss after epoch {epoch+1}: {eval_loss:.4f}")
+    if local_rank == 0:
+        model.module.save_pretrained("./preference_sft")
+        tokenizer.save_pretrained("./preference_sft")
+        writer.close()
 
-    output_dir = "./qwen2.5-finetuned"
-    os.makedirs(output_dir, exist_ok=True)
-    model.module.save_pretrained(output_dir) if isinstance(model, nn.DataParallel) else model.save_pretrained(output_dir)
-    tokenizer.save_pretrained(output_dir)
-    writer.close()
+    cleanup()
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Fine-tune a causal LM with SFT data.")
