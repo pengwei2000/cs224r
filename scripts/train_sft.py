@@ -53,8 +53,8 @@ def finetune_model():
     model.to(device)
     model = DDP(model, device_ids=[local_rank])
 
-    train_dataloader = get_dataloader(split="train", batch_size=4, shuffle=True, num_workers=args.num_workers, debug_mode=args.debug_mode)
-    eval_dataloader = get_dataloader(split="test", batch_size=4, shuffle=False, num_workers=args.num_workers, debug_mode=args.debug_mode)
+    train_dataloader = get_dataloader(split="train", batch_size=4, shuffle=True, num_workers=args.num_workers, debug_mode=args.debug_mode, max_length=args.max_length)
+    eval_dataloader = get_dataloader(split="test", batch_size=4, shuffle=False, num_workers=args.num_workers, debug_mode=args.debug_mode, max_length=args.max_length)
     optimizer = optim.AdamW(model.parameters(), lr=args.learning_rate)
 
     num_epochs = args.num_epochs
@@ -116,6 +116,7 @@ def parse_args():
     parser.add_argument("--num_workers", type=int, default=1, help="Number of workers for data loading.")
     parser.add_argument("--debug_mode", action="store_true", help="Enable debug mode for small dataset.")
     parser.add_argument("--save_name", type=str, default=f'{run_name}', help="Name of the model to save.")
+    parser.add_argument("--max_length", type=int, default=576, help="Maximum length of the input sequences.")
     return parser.parse_args()
 
 if __name__ == "__main__":

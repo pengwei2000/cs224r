@@ -66,8 +66,8 @@ def collate_fn(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
     }
 
 # Function to get DataLoader
-def get_dataloader(split="train", batch_size=64, shuffle=True, num_workers=4, debug_mode=False):
-    dataset = SmolTalkDataset(split=split, debug_mode=debug_mode)
+def get_dataloader(split="train", batch_size=64, shuffle=True, num_workers=4, debug_mode=False, max_length=576):
+    dataset = SmolTalkDataset(split=split, max_length=max_length, debug_mode=debug_mode)
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
