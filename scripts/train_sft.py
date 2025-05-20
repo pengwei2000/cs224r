@@ -84,7 +84,7 @@ def finetune_model():
 
             global_step += 1
 
-    model.module.save_pretrained(os.path.join(checkpoint_dir, f"step_{global_step}"))
+    model.save_pretrained(os.path.join(checkpoint_dir, f"step_{global_step}"))
     tokenizer.save_pretrained(os.path.join(checkpoint_dir, f"step_{global_step}"))
     writer.close()
 
