@@ -54,7 +54,7 @@ def finetune_model():
     model = DDP(model, device_ids=[local_rank])
 
     train_dataloader = get_dataloader(split="train", batch_size=4, shuffle=True)
-    eval_dataloader = get_dataloader(split="validation", batch_size=4, shuffle=False)
+    eval_dataloader = get_dataloader(split="test", batch_size=4, shuffle=False)
     optimizer = optim.AdamW(model.parameters(), lr=1e-5)
 
     num_epochs = 3
