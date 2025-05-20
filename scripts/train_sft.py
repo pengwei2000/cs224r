@@ -53,11 +53,11 @@ def finetune_model():
     model.to(device)
     model = DDP(model, device_ids=[local_rank])
 
-    train_dataloader = get_dataloader(split="train", batch_size=4, shuffle=True)
-    eval_dataloader = get_dataloader(split="test", batch_size=4, shuffle=False)
-    optimizer = optim.AdamW(model.parameters(), lr=1e-5)
+    train_dataloader = get_dataloader(split="train", batch_size=4, shuffle=True, num_workers=args.num_workers, debug_mode=args.debug_mode)
+    eval_dataloader = get_dataloader(split="test", batch_size=4, shuffle=False, num_workers=args.num_workers, debug_mode=args.debug_mode)
+    optimizer = optim.AdamW(model.parameters(), lr=args.learning_rate)
 
-    num_epochs = 3
+    num_epochs = args.num_epochs
     global_step = 0
     for epoch in range(num_epochs):
         pbar = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{num_epochs}", disable=local_rank != 0)
@@ -90,6 +90,10 @@ def finetune_model():
 def parse_args():
     parser = argparse.ArgumentParser(description="Fine-tune a causal LM with SFT data.")
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for training and evaluation.")
+    parser.add_argument("--num_epochs", type=int, default=3, help="Number of epochs to train.")
+    parser.add_argument("--learning_rate", type=float, default=1e-5, help="Learning rate for the optimizer.")
+    parser.add_argument("--num_workers", type=int, default=1, help="Number of workers for data loading.")
+    parser.add_argument("--debug_mode", action="store_true", help="Enable debug mode for small dataset.")
     return parser.parse_args()
 
 if __name__ == "__main__":
