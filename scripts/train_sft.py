@@ -50,6 +50,7 @@ def finetune_model():
     device = torch.device("cuda", local_rank)
 
     model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, trust_remote_code=True)
+    model.config.pad_token_id = tokenizer.pad_token_id
     model.to(device)
     model = DDP(model, device_ids=[local_rank])
 
