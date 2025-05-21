@@ -1,5 +1,6 @@
 import torch
 from torch import nn, optim
+import torch.amp.GradScaler as GradScaler
 import sys
 sys.path.append("..")
 from transformers import AutoModelForCausalLM
@@ -39,7 +40,7 @@ def finetune_model():
     os.makedirs(checkpoint_dir, exist_ok=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model_path = os.path.join(checkpoint_dir, args.resume_from) if args.resume_from else MODEL_NAME
+    model_path = os.path.join('../checkpoints', args.resume_from) if args.resume_from else MODEL_NAME
     if args.lora:
         base_model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, trust_remote_code=True)
         base_model.config.pad_token_id = tokenizer.pad_token_id
@@ -61,7 +62,7 @@ def finetune_model():
     train_dataloader = get_dataloader(split="train", batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, debug_mode=args.debug_mode, max_length=args.max_length)
     eval_dataloader = get_dataloader(split="test", batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, debug_mode=args.debug_mode, max_length=args.max_length)
     optimizer = optim.AdamW(model.parameters(), lr=args.learning_rate)
-
+    scaler = GradScaler()
     num_epochs = args.num_epochs
     global_step = 0
     if args.resume_from and args.resume_from.startswith("step_"):
@@ -76,14 +77,16 @@ def finetune_model():
     for epoch in range(num_epochs):
         pbar = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{num_epochs}")
         for batch in pbar:
+            optimizer.zero_grad()
             batch = {k: v.to(device) for k, v in batch.items()}
-            outputs = model(**batch)
-            loss = outputs.loss
+            with torch.autocast(device_type='cuda', dtype=torch.float16):
+                outputs = model(**batch)
+                loss = outputs.loss
             if loss.isnan().any():
                 print("Loss is NaN, global step:", global_step)
-            loss.backward()
-            optimizer.step()
-            optimizer.zero_grad()
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
 
             writer.add_scalar("Loss/train", loss.item(), global_step)
             pbar.set_postfix({"loss": loss.item()})
