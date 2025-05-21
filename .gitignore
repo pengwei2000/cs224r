@@ -1,2 +1,5 @@
 *.pdf
 try.py
+*.pyc
+output/
+checkpoints/

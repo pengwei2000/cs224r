@@ -20,7 +20,9 @@ def evaluate(model, dataloader, device, global_step):
     total_loss = 0
     count = 0
     with torch.no_grad():
-        for batch in dataloader:
+        for i, batch in enumerate(dataloader):
+            if i > 1000:
+                break
             batch = {k: v.to(device) for k, v in batch.items()}
             outputs = model(**batch)
             loss = outputs.loss
@@ -37,28 +39,37 @@ def finetune_model():
     os.makedirs(checkpoint_dir, exist_ok=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    base_model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, trust_remote_code=True)
-    base_model.config.pad_token_id = tokenizer.pad_token_id
-
-    lora_config = LoraConfig(
-        r=16,
-        lora_alpha=16,
-        lora_dropout=0.05,
-        bias="none",
-        task_type=TaskType.CAUSAL_LM
-    )
-    model = get_peft_model(base_model, lora_config)
-    model.print_trainable_parameters()
+    model_path = os.path.join(checkpoint_dir, args.resume_from) if args.resume_from else MODEL_NAME
+    if args.lora:
+        base_model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, trust_remote_code=True)
+        base_model.config.pad_token_id = tokenizer.pad_token_id
+        lora_config = LoraConfig(
+            r=16,
+            lora_alpha=16,
+            lora_dropout=0.05,
+            bias="none",
+            task_type=TaskType.CAUSAL_LM
+        )
+        model = get_peft_model(base_model, lora_config)
+        model.print_trainable_parameters()
+    else:
+        model = AutoModelForCausalLM.from_pretrained(model_path, trust_remote_code=True)
+        model.config.pad_token_id = tokenizer.pad_token_id
     model.to(device)
     model.train()
 
     train_dataloader = get_dataloader(split="train", batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, debug_mode=args.debug_mode, max_length=args.max_length)
-    eval_dataloader = get_dataloader(split="test", batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, debug_mode=args.debug_mode, max_length=args.max_length)
+    eval_dataloader = get_dataloader(split="test", batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, debug_mode=args.debug_mode, max_length=args.max_length)
     optimizer = optim.AdamW(model.parameters(), lr=args.learning_rate)
 
     num_epochs = args.num_epochs
     global_step = 0
+    if args.resume_from and args.resume_from.startswith("step_"):
+        try:
+            global_step = int(args.resume_from.replace("step_", "").split("_")[0])
+            print(f"Resuming training from global_step = {global_step}")
+        except ValueError:
+            print(f"Warning: Could not parse global_step from resume_from = {args.resume_from}")
     early_stop_patience = 20
     best_eval_loss = float("inf")
     early_stop_counter = 0
@@ -103,12 +114,14 @@ def finetune_model():
 def parse_args():
     parser = argparse.ArgumentParser(description="Fine-tune a causal LM with SFT data.")
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for training and evaluation.")
-    parser.add_argument("--num_epochs", type=int, default=3, help="Number of epochs to train.")
+    parser.add_argument("--num_epochs", type=int, default=1, help="Number of epochs to train.")
     parser.add_argument("--learning_rate", type=float, default=1e-5, help="Learning rate for the optimizer.")
     parser.add_argument("--num_workers", type=int, default=1, help="Number of workers for data loading.")
     parser.add_argument("--debug_mode", action="store_true", help="Enable debug mode for small dataset.")
     parser.add_argument("--save_name", type=str, default=f'{run_name}', help="Name of the model to save.")
     parser.add_argument("--max_length", type=int, default=576, help="Maximum length of the input sequences.")
+    parser.add_argument("--lora", action="store_true", help="Use LoRA for training.")
+    parser.add_argument("--resume_from", type=str, default=None, help="Path to resume training from a checkpoint.")
     return parser.parse_args()
 
 if __name__ == "__main__":
