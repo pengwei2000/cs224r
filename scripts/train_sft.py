@@ -1,6 +1,5 @@
 import torch
 from torch import nn, optim
-import torch.amp.GradScaler as GradScaler
 import sys
 sys.path.append("..")
 from transformers import AutoModelForCausalLM
@@ -62,7 +61,7 @@ def finetune_model():
     train_dataloader = get_dataloader(split="train", batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, debug_mode=args.debug_mode, max_length=args.max_length)
     eval_dataloader = get_dataloader(split="test", batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, debug_mode=args.debug_mode, max_length=args.max_length)
     optimizer = optim.AdamW(model.parameters(), lr=args.learning_rate)
-    scaler = GradScaler()
+    scaler = torch.GradScaler()
     num_epochs = args.num_epochs
     global_step = 0
     if args.resume_from and args.resume_from.startswith("step_"):
