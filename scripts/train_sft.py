@@ -39,7 +39,7 @@ def finetune_model():
     os.makedirs(checkpoint_dir, exist_ok=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model_path = os.path.join('../checkpoints', args.resume_from) if args.resume_from else MODEL_NAME
+    model_path = os.path.join(checkpoint_dir, args.resume_from) if args.resume_from else MODEL_NAME
     if args.lora:
         base_model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, trust_remote_code=True)
         base_model.config.pad_token_id = tokenizer.pad_token_id
