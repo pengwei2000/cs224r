@@ -3,6 +3,7 @@ import numpy as np
 from transformers import AutoTokenizer
 
 DATASET_NAME = "HuggingFaceTB/smol-smoltalk"
+DATASET_NAME = "Asap7772/cog_behav_all_strategies"
 dataset = load_dataset(DATASET_NAME, split="train")
 tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-0.5B", use_fast=True)
 
@@ -24,7 +25,16 @@ def get_token_length(example):
     full_text = prompt + response
     return {"token_length": len(tokenizer.encode(full_text))}
 
-dataset = dataset.map(get_token_length)
+def get_token_length_verifier(example):     
+    prompt = example['query']
+    response = example['completion']
+
+    full_text = prompt + response
+    return {"token_length": len(tokenizer.encode(full_text))}
+
+dataset = dataset.map(get_token_length_verifier)
 lengths = dataset["token_length"]
 percentile_95 = np.percentile(lengths, 95)
+median_length = np.median(lengths)
+print(f"Median token length: {median_length}") # 576
 print(f"95th percentile of token lengths: {percentile_95}") # 576
