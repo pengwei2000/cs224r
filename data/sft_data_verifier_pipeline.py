@@ -28,7 +28,7 @@ class CountDownDataset(Dataset):
         prompt = self.dataset[idx]['query']
         response = self.dataset[idx]['completion']
         full_text = prompt + response
-
+        print(prompt)
         # Tokenize the prompt and full text
         prompt_tokens = tokenizer(prompt, add_special_tokens=False)["input_ids"]
         full_tokens = tokenizer(full_text, truncation=True, max_length=self.max_length, padding=False)["input_ids"]
