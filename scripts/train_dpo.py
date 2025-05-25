@@ -9,7 +9,8 @@ import os
 from peft import get_peft_model, LoraConfig, TaskType
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
-from utils import dpo_loss
+from utils import dpo_loss, linear_warmup_schedule
+from torch.optim.lr_scheduler import LambdaLR
 import argparse
 
 run_name = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -71,7 +72,8 @@ def finetune_model():
 
     train_dataloader = get_dataloader(split="train_prefs", batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, debug_mode=args.debug_mode)
     eval_dataloader = get_dataloader(split="test_prefs", batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, debug_mode=args.debug_mode)
-    optimizer = optim.AdamW(model.parameters(), lr=args.learning_rate)
+    optimizer = optim.RMSprop(model.parameters(), lr=args.learning_rate)
+    lr_scheduler = LambdaLR(optimizer, lr_lambda=linear_warmup_schedule)
     scaler = torch.GradScaler()
     num_epochs = args.num_epochs
     global_step = 0
@@ -96,6 +98,7 @@ def finetune_model():
                 print("Loss is NaN, global step:", global_step)
             scaler.scale(loss).backward()
             scaler.step(optimizer)
+            lr_scheduler.step()
             scaler.update()
 
             writer.add_scalar("Loss/train", loss.item(), global_step)

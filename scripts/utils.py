@@ -150,3 +150,8 @@ def centered_rewards(reward_list):
         other_mean = (rewards.sum() - rewards[i]) / (k - 1)
         centered.append(rewards[i] - other_mean)
     return torch.stack(centered)
+
+def linear_warmup_schedule(step, warmup_steps=150):
+    if step < warmup_steps:
+        return step / max(1, warmup_steps)
+    return 1.0
