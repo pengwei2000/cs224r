@@ -11,9 +11,11 @@ def sequence_log_prob(model, input_ids, attention_mask, labels):
     assert logits.shape[:-1] == labels.shape, f"Logits shape {logits.shape} does not match labels shape {labels.shape}"
     labels = labels[:, 1:].clone()
     logits = logits[:, :-1, :]
+    loss_mask = (labels != -100)
+    labels[labels == -100] = 0
     log_probs = F.log_softmax(logits, dim=-1)
     token_log_probs = torch.gather(log_probs, dim=2, index=labels.unsqueeze(2)).squeeze(2)
-    seq_log_probs = (token_log_probs * (labels != -100)).sum(dim=-1)
+    seq_log_probs = (token_log_probs * loss_mask).sum(dim=-1)
     return seq_log_probs  # shape: (batch,)
 
 

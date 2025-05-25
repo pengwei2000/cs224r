@@ -64,6 +64,7 @@ def finetune_model():
         model.config.pad_token_id = tokenizer.pad_token_id
     model.to(device)
     ref_model.to(device)
+    ref_model.eval()
     model.train()
     for param in ref_model.parameters():
         param.requires_grad = False
