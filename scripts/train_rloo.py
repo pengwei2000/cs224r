@@ -130,7 +130,7 @@ def finetune_model():
             writer.add_scalar("Loss/train", loss.item(), global_step)
             writer.add_scalar('rewards/mean', torch.tensor(rewards).float().mean(), global_step)
             pbar.set_postfix({"loss": loss.item(), "reward": torch.tensor(rewards).float().mean().item()})
-            if global_step % 1000 == 0:
+            if global_step % 100 == 0:
             #     eval_loss = evaluate(model, eval_dataloader, device, global_step)
             #     print(f"Step {global_step} Eval Loss: {eval_loss:.4f}")
 
