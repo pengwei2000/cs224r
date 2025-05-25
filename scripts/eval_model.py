@@ -34,7 +34,7 @@ def evaluate_models(your_model_path, ref_model_path, api_key, max_prompts=100):
     print("Loading models with VLLM...")
     sampling_params = SamplingParams(temperature=0.7, max_tokens=989)
 
-    if args.stage == "generate_your_model":
+    if args.stage == "your_model":
         print("Generating responses from your model...")
         llm = LLM(model=your_model_path, dtype="auto")
         outputs = llm.generate(prompts, sampling_params)
@@ -43,7 +43,7 @@ def evaluate_models(your_model_path, ref_model_path, api_key, max_prompts=100):
             json.dump(your_responses, f)
         print("Saved your model responses to your_outputs.json")
 
-    elif args.stage == "generate_ref_model":
+    elif args.stage == "ref_model":
         print("Generating responses from reference model...")
         llm = LLM(model=ref_model_path, dtype="auto")
         outputs = llm.generate(prompts, sampling_params)
