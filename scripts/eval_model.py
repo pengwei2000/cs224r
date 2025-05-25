@@ -38,7 +38,7 @@ def evaluate_models(your_model_path, ref_model_path, api_key, max_prompts=100):
 
     print("Generating responses...")
     your_outputs = your_llm.generate(prompts, sampling_params)
-    ref_outputs = ref_llm.generate(prompts, sampling_params)
+    # ref_outputs = ref_llm.generate(prompts, sampling_params)
     if not args.debug_mode:
         client = create_reward_client(api_key)
     win_labels = []
@@ -47,10 +47,10 @@ def evaluate_models(your_model_path, ref_model_path, api_key, max_prompts=100):
     for i in tqdm(range(len(prompts))):
         prompt = prompts[i]
         your_response = your_outputs[i].outputs[0].text.strip()
-        ref_response = ref_outputs[i].outputs[0].text.strip()
+        # ref_response = ref_outputs[i].outputs[0].text.strip()
         print(prompt)
         print(f"Your response: {your_response}")
-        print(f"Reference response: {ref_response}")
+        # print(f"Reference response: {ref_response}")
         if not args.debug_mode:
             r1 = get_reward_score(client, prompt, your_response)
             r2 = get_reward_score(client, prompt, ref_response)
