@@ -33,14 +33,14 @@ def evaluate_models(your_model_path, ref_model_path, api_key, max_prompts=100):
     print("Loading models with VLLM...")
     sampling_params = SamplingParams(temperature=0.7, max_tokens=989)
 
-    your_llm = LLM(model=your_model_path, dtype="auto", gpu_memory_utilization=0.4)
-    ref_llm = LLM(model=ref_model_path, dtype="auto", gpu_memory_utilization=0.4)
+    your_llm = LLM(model=your_model_path, dtype="auto", gpu_memory_utilization=0.3)
+    ref_llm = LLM(model=ref_model_path, dtype="auto", gpu_memory_utilization=0.3)
 
     print("Generating responses...")
     your_outputs = your_llm.generate(prompts, sampling_params)
     ref_outputs = ref_llm.generate(prompts, sampling_params)
-
-    # client = create_reward_client(api_key)
+    if not args.debug_mode:
+        client = create_reward_client(api_key)
     win_labels = []
 
     print("Scoring with Nemotron...")
@@ -51,9 +51,12 @@ def evaluate_models(your_model_path, ref_model_path, api_key, max_prompts=100):
         print(prompt)
         print(f"Your response: {your_response}")
         print(f"Reference response: {ref_response}")
-        # r1 = get_reward_score(client, prompt, your_response)
-        # r2 = get_reward_score(client, prompt, ref_response)
-
+        if not args.debug_mode:
+            r1 = get_reward_score(client, prompt, your_response)
+            r2 = get_reward_score(client, prompt, ref_response)
+        else:
+            r1 = None
+            r2 = None
         if r1 is not None and r2 is not None:
             win = int(r1 > r2)
             win_labels.append(win)
@@ -70,6 +73,7 @@ def parse_args():
     parser.add_argument("--ref_model", type=str, default="../checkpoints/preference_sft_20250520-041117/step_55000", help="Baseline model path or HF hub ID.")
     parser.add_argument("--api_key", type=str, default="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")
     parser.add_argument("--max_prompts", type=int, default=1000, help="Number of prompts to evaluate.")
+    parser.add_argument("--debug_mode", action="store_true", help="Enable debug mode for small dataset.")
     return parser.parse_args()
 
 ### === Main Entrypoint === ###
