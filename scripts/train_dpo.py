@@ -9,7 +9,7 @@ import os
 from peft import get_peft_model, LoraConfig, TaskType
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
-from utils import compute_log_probs, sequence_log_prob, dpo_loss
+from utils import dpo_loss
 import argparse
 
 run_name = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -127,7 +127,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Fine-tune a causal LM with DPO data.")
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for training and evaluation.")
     parser.add_argument("--num_epochs", type=int, default=1, help="Number of epochs to train.")
-    parser.add_argument("--learning_rate", type=float, default=1e-5, help="Learning rate for the optimizer.")
+    parser.add_argument("--learning_rate", type=float, default=1e-6, help="Learning rate for the optimizer.")
     parser.add_argument("--num_workers", type=int, default=1, help="Number of workers for data loading.")
     parser.add_argument("--debug_mode", action="store_true", help="Enable debug mode for small dataset.")
     parser.add_argument("--save_name", type=str, default=f'{run_name}', help="Name of the model to save.")
