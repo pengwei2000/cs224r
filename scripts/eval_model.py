@@ -4,6 +4,7 @@ from datasets import load_dataset
 from vllm import LLM, SamplingParams
 from openai import OpenAI
 from tqdm import tqdm
+import json
 
 ### === Configurable Constants === ###
 API_BASE = "https://integrate.api.nvidia.com/v1"
@@ -33,38 +34,49 @@ def evaluate_models(your_model_path, ref_model_path, api_key, max_prompts=100):
     print("Loading models with VLLM...")
     sampling_params = SamplingParams(temperature=0.7, max_tokens=989)
 
-    your_llm = LLM(model=your_model_path, dtype="auto", gpu_memory_utilization=0.9)
-    # ref_llm = LLM(model=ref_model_path, dtype="auto", gpu_memory_utilization=0.3)
+    if args.stage == "generate_your_model":
+        print("Generating responses from your model...")
+        llm = LLM(model=your_model_path, dtype="auto")
+        outputs = llm.generate(prompts, sampling_params)
+        your_responses = [o.outputs[0].text.strip() for o in outputs]
+        with open("your_outputs.json", "w") as f:
+            json.dump(your_responses, f)
+        print("Saved your model responses to your_outputs.json")
 
-    print("Generating responses...")
-    your_outputs = your_llm.generate(prompts, sampling_params)
-    # ref_outputs = ref_llm.generate(prompts, sampling_params)
-    if not args.debug_mode:
-        client = create_reward_client(api_key)
-    win_labels = []
+    elif args.stage == "generate_ref_model":
+        print("Generating responses from reference model...")
+        llm = LLM(model=ref_model_path, dtype="auto")
+        outputs = llm.generate(prompts, sampling_params)
+        ref_responses = [o.outputs[0].text.strip() for o in outputs]
+        with open("ref_outputs.json", "w") as f:
+            json.dump(ref_responses, f)
+        print("Saved reference model responses to ref_outputs.json")
 
-    print("Scoring with Nemotron...")
-    for i in tqdm(range(len(prompts))):
-        prompt = prompts[i]
-        your_response = your_outputs[i].outputs[0].text.strip()
-        # ref_response = ref_outputs[i].outputs[0].text.strip()
-        print(prompt)
-        print(f"Your response: {your_response}")
-        # print(f"Reference response: {ref_response}")
-        if not args.debug_mode:
-            r1 = get_reward_score(client, prompt, your_response)
-            r2 = get_reward_score(client, prompt, ref_response)
-        else:
-            r1 = None
-            r2 = None
-        if r1 is not None and r2 is not None:
-            win = int(r1 > r2)
-            win_labels.append(win)
+    elif args.stage == "score":
+        print("Scoring model outputs with Nemotron...")
+        with open("your_outputs.json") as f:
+            your_responses = json.load(f)
+        with open("ref_outputs.json") as f:
+            ref_responses = json.load(f)
 
-        time.sleep(0.5)  # to avoid hitting API rate limits
+        assert len(your_responses) == len(ref_responses) == len(prompts), "Mismatch in number of prompts/responses."
 
-    win_rate = sum(win_labels) / len(win_labels)
-    print(f"\nFinal Win Rate (your model > reference): {win_rate:.3f} ({sum(win_labels)} / {len(win_labels)})")
+        client = create_reward_client(args.api_key)
+        win_labels = []
+
+        for i in tqdm(range(len(prompts))):
+            prompt = prompts[i]
+            r1 = get_reward_score(client, prompt, your_responses[i])
+            r2 = get_reward_score(client, prompt, ref_responses[i])
+            if r1 is not None and r2 is not None:
+                win_labels.append(int(r1 > r2))
+            time.sleep(0.5)  # Avoid hitting API rate limits
+
+        win_rate = sum(win_labels) / len(win_labels)
+        print(f"\nFinal Win Rate (your model > reference): {win_rate:.3f} ({sum(win_labels)} / {len(win_labels)})")
+
+    else:
+        raise ValueError(f"Invalid stage: {args.stage}")
 
 ### === CLI Parser === ###
 def parse_args():
@@ -73,7 +85,9 @@ def parse_args():
     parser.add_argument("--ref_model", type=str, default="../checkpoints/preference_sft_20250520-041117/step_55000", help="Baseline model path or HF hub ID.")
     parser.add_argument("--api_key", type=str, default="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")
     parser.add_argument("--max_prompts", type=int, default=1000, help="Number of prompts to evaluate.")
-    parser.add_argument("--debug_mode", action="store_true", help="Enable debug mode for small dataset.")
+    # parser.add_argument("--debug_mode", action="store_true", help="Enable debug mode for small dataset.")
+    parser.add_argument("--stage", type=str, choices=["your_model", "ref_model", "score"], required=True,
+                        help="Stage of evaluation: 'generate_your_model', 'generate_ref_model', or 'score'.")
     return parser.parse_args()
 
 ### === Main Entrypoint === ###
