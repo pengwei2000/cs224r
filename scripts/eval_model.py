@@ -33,8 +33,8 @@ def evaluate_models(your_model_path, ref_model_path, api_key, max_prompts=100):
     print("Loading models with VLLM...")
     sampling_params = SamplingParams(temperature=0.7, max_tokens=989)
 
-    your_llm = LLM(model=your_model_path, dtype="auto", gpu_memory_utilization=0.3)
-    ref_llm = LLM(model=ref_model_path, dtype="auto", gpu_memory_utilization=0.3)
+    your_llm = LLM(model=your_model_path, dtype="auto", gpu_memory_utilization=0.9)
+    # ref_llm = LLM(model=ref_model_path, dtype="auto", gpu_memory_utilization=0.3)
 
     print("Generating responses...")
     your_outputs = your_llm.generate(prompts, sampling_params)
