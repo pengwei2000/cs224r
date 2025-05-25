@@ -90,17 +90,23 @@ def finetune_model():
     for epoch in range(num_epochs):
         pbar = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{num_epochs}")
         for batch in pbar:
-            optimizer.zero_grad()
+            
             batch = {k: v.to(device) for k, v in batch.items()}
             with torch.autocast(device_type='cuda', dtype=torch.float16):
                 loss = dpo_loss(model, ref_model, batch, beta=args.beta)
+                loss = loss / args.gradient_accumulation_steps
             if loss.isnan().any():
                 print("Loss is NaN, global step:", global_step)
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            lr_scheduler.step()
-            scaler.update()
 
+            scaler.scale(loss).backward()
+
+            if (global_step + 1) % args.gradient_accumulation_steps == 0:
+                scaler.step(optimizer)
+                lr_scheduler.step()
+                scaler.update()
+                optimizer.zero_grad()
+            current_lr = optimizer.param_groups[0]["lr"]
+            writer.add_scalar("LR", current_lr, global_step)
             writer.add_scalar("Loss/train", loss.item(), global_step)
             pbar.set_postfix({"loss": loss.item()})
             if global_step % 1000 == 0:
@@ -138,6 +144,7 @@ def parse_args():
     parser.add_argument("--lora", action="store_true", help="Use LoRA for training.")
     parser.add_argument("--resume_from", type=str, default=None, help="Path to resume training from a checkpoint.")
     parser.add_argument("--beta", type=float, default=0.1, help="Beta parameter for DPO loss.")
+    parser.add_argument("--gradient_accumulation_steps", type=int, default=8, help="Number of gradient accumulation steps.")
     return parser.parse_args()
 
 if __name__ == "__main__":
