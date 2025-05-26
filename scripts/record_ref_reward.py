@@ -29,12 +29,11 @@ def finetune_model():
         confidences.append(ref_confidence.item())
         pbar.set_postfix({"confidence": ref_confidence.item()})
         global_step += 1
-        if global_step == 1:
-            print(prompt_ids, confidences)
-        output_dir = f"../output/confidences_ref.txt"
-        with open(output_dir, 'w') as f:
-            for prompt_id, confidence in zip(prompt_ids, confidences):
-                f.write(f"{prompt_id}\t{confidence}\n")
+
+    output_dir = f"../output/confidences_ref.txt"
+    with open(output_dir, 'w') as f:
+        for prompt_id, confidence in zip(prompt_ids, confidences):
+            f.write(f"{prompt_id}\t{confidence}\n")
     print(f"Confidences saved to {output_dir}")
 def parse_args():
     parser = argparse.ArgumentParser(description="Fine-tune a causal LM with DPO data.")
