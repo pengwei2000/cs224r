@@ -91,7 +91,7 @@ def finetune_model():
         pbar = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{num_epochs}")
         for batch in pbar:
             
-            batch = {k: v.to(device) for k, v in batch.items()}
+            batch = {k: v.to(device) for k, v in batch.items() if k != "prompt_id"}
             with torch.autocast(device_type='cuda', dtype=torch.float16):
                 loss = dpo_loss(model, ref_model, batch, beta=args.beta)
                 loss = loss / args.gradient_accumulation_steps
