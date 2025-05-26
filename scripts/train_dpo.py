@@ -23,7 +23,7 @@ def evaluate(model, ref_model, dataloader, device, global_step, beta=0.1):
     count = 0
     with torch.no_grad():
         for i, batch in enumerate(dataloader):
-            if i > 100:
+            if i > 500:
                 break
             batch = {k: v.to(device) for k, v in batch.items()}
             loss = dpo_loss(model, ref_model, batch, beta=beta)

@@ -100,7 +100,6 @@ def finetune_model():
 
                     # Save checkpoint
                     model.save_pretrained(os.path.join(checkpoint_dir, f"step_{global_step}"))
-                    # tokenizer.save_pretrained(os.path.join(checkpoint_dir, f"step_{global_step}"))
                 else:
                     early_stop_counter += 1
                     if early_stop_counter >= early_stop_patience:
@@ -110,7 +109,6 @@ def finetune_model():
             global_step += 1
 
     model.save_pretrained(os.path.join(checkpoint_dir, f"step_{global_step}"))
-    # tokenizer.save_pretrained(os.path.join(checkpoint_dir, f"step_{global_step}"))
     writer.close()
 
 
