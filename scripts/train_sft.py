@@ -70,9 +70,7 @@ def finetune_model():
             print(f"Resuming training from global_step = {global_step}")
         except ValueError:
             print(f"Warning: Could not parse global_step from resume_from = {args.resume_from}")
-    early_stop_patience = 20
     best_eval_loss = float("inf")
-    early_stop_counter = 0
     for epoch in range(num_epochs):
         pbar = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{num_epochs}")
         for batch in pbar:
@@ -96,16 +94,9 @@ def finetune_model():
 
                 if eval_loss < best_eval_loss:
                     best_eval_loss = eval_loss
-                    early_stop_counter = 0
-
                     # Save checkpoint
                     model.save_pretrained(os.path.join(checkpoint_dir, f"step_{global_step}"))
                     tokenizer.save_pretrained(os.path.join(checkpoint_dir, f"step_{global_step}"))
-                else:
-                    early_stop_counter += 1
-                    if early_stop_counter >= early_stop_patience:
-                        print("Early stopping triggered.")
-                        break
 
             global_step += 1
 
