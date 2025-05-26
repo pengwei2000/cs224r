@@ -44,7 +44,7 @@ def finetune_model():
         ref_model_path = MODEL_NAME
         model_path = MODEL_NAME
     else:
-        ref_model_path = '../checkpoints/preference_sft_20250520-041117/step_55000'
+        ref_model_path = '../checkpoints/preference_sft_20250525_pref_sft_grad_acc_length_600/step_55000'
         model_path = os.path.join(checkpoint_dir, args.resume_from) if args.resume_from else ref_model_path
     if args.lora:
         base_model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, trust_remote_code=True)
