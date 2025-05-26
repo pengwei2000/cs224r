@@ -13,9 +13,6 @@ from utils import dpo_loss, linear_warmup_schedule, sequence_log_prob
 from torch.optim.lr_scheduler import LambdaLR
 import argparse
 
-run_name = datetime.now().strftime("%Y%m%d-%H%M%S")
-
-
 
 def finetune_model():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -24,7 +21,7 @@ def finetune_model():
     ref_model.config.pad_token_id = tokenizer.pad_token_id
     ref_model.to(device)
     ref_model.eval()
-    train_dataloader = get_dataloader(split="train_prefs", batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, debug_mode=args.debug_mode)
+    train_dataloader = get_dataloader(split="train_prefs", batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
 
     global_step = 0
     confidences = []
