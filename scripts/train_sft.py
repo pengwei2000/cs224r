@@ -88,8 +88,8 @@ def finetune_model():
                 scaler.step(optimizer)
                 scaler.update()
                 optimizer.zero_grad()
-            writer.add_scalar("Loss/train", loss.item(), global_step)
-            pbar.set_postfix({"loss": loss.item()})
+            writer.add_scalar("Loss/train", loss.item()*args.gradient_accumulation_steps, global_step)
+            pbar.set_postfix({"loss": loss.item()*args.gradient_accumulation_steps})
             if global_step % 1000 == 0:
                 eval_loss = evaluate(model, eval_dataloader, device, global_step)
                 print(f"Step {global_step} Eval Loss: {eval_loss:.4f}")
@@ -100,6 +100,7 @@ def finetune_model():
 
                     # Save checkpoint
                     model.save_pretrained(os.path.join(checkpoint_dir, f"step_{global_step}"))
+                    tokenizer.save_pretrained(os.path.join(checkpoint_dir, f"step_{global_step}"))
                 else:
                     early_stop_counter += 1
                     if early_stop_counter >= early_stop_patience:
@@ -109,6 +110,7 @@ def finetune_model():
             global_step += 1
 
     model.save_pretrained(os.path.join(checkpoint_dir, f"step_{global_step}"))
+    tokenizer.save_pretrained(os.path.join(checkpoint_dir, f"step_{global_step}"))
     writer.close()
 
 
