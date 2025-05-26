@@ -25,7 +25,7 @@ def evaluate(model, ref_model, dataloader, device, global_step, beta=0.1):
         for i, batch in enumerate(dataloader):
             if i > 500:
                 break
-            batch = {k: v.to(device) for k, v in batch.items()}
+            batch = {k: v.to(device) for k, v in batch.items() if k != "prompt_id"}
             loss = dpo_loss(model, ref_model, batch, beta=beta)
             total_loss += loss.item() * batch["input_ids_chosen"].size(0)
             count += batch["input_ids_chosen"].size(0)

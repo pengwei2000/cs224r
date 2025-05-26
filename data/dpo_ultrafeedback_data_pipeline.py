@@ -51,6 +51,7 @@ class UltraFeedbackDataset(Dataset):
             "input_ids_rejected": torch.tensor(prompt_tokens+rejected_tokens, dtype=torch.long),
             "attention_mask_rejected": torch.tensor([1] * len(prompt_tokens+rejected_tokens), dtype=torch.long),   # ensure the information is not flowed from pad
             "labels_rejected": torch.tensor(labels_rejected, dtype=torch.long),
+            "prompt_id": self.dataset[idx]['prompt_id'],  # Keep track of the prompt ID
         }
 
 # Collate function with dynamic padding
@@ -72,6 +73,7 @@ def collate_fn(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
         "input_ids_rejected": input_ids_rejected,
         "attention_mask_rejected": attention_mask_rejected,
         "labels_rejected": labels_rejected,
+        "prompt_id": [d["prompt_id"] for d in batch],  # Keep track of the prompt IDs
     }
 
 # Function to get DataLoader

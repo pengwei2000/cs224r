@@ -1,18 +1,11 @@
 import torch
-from torch import nn, optim
 import sys
 sys.path.append("..")
 from transformers import AutoModelForCausalLM
-from data.dpo_ultrafeedback_data_pipeline import get_dataloader, tokenizer, MODEL_NAME
+from data.dpo_ultrafeedback_data_pipeline import get_dataloader, tokenizer
 from tqdm import tqdm
-import os
-from peft import get_peft_model, LoraConfig, TaskType
-from torch.utils.tensorboard import SummaryWriter
-from datetime import datetime
-from utils import dpo_loss, linear_warmup_schedule, sequence_log_prob
-from torch.optim.lr_scheduler import LambdaLR
+from utils import sequence_log_prob
 import argparse
-
 
 def finetune_model():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -25,20 +18,23 @@ def finetune_model():
 
     global_step = 0
     confidences = []
+    prompt_ids = []
     pbar = tqdm(train_dataloader)
     for batch in pbar:
-        batch = {k: v.to(device) for k, v in batch.items()}
+        prompt_ids.append(batch['prompt_id'][0])
+        batch = {k: v.to(device) for k, v in batch.items() if k != "prompt_id"}
         ref_log_prob_chosen = sequence_log_prob(ref_model, batch['input_ids_chosen'], batch['attention_mask_chosen'], batch['labels_chosen'])
         ref_log_prob_rejected = sequence_log_prob(ref_model, batch['input_ids_rejected'], batch['attention_mask_rejected'], batch['labels_rejected'])
         ref_confidence = ref_log_prob_chosen - ref_log_prob_rejected
         confidences.append(ref_confidence.item())
         pbar.set_postfix({"confidence": ref_confidence.item()})
         global_step += 1
-
-    output_dir = f"../output/confidences_ref.txt"
-    with open(output_dir, 'w') as f:
-        for confidence in confidences:
-            f.write(f"{confidence}\n")
+        if global_step == 1:
+            print(prompt_ids, confidences)
+        output_dir = f"../output/confidences_ref.txt"
+        with open(output_dir, 'w') as f:
+            for prompt_id, confidence in zip(prompt_ids, confidences):
+                f.write(f"{prompt_id}\t{confidence}\n")
     print(f"Confidences saved to {output_dir}")
 def parse_args():
     parser = argparse.ArgumentParser(description="Fine-tune a causal LM with DPO data.")
