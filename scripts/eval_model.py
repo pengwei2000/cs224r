@@ -70,8 +70,7 @@ def evaluate_models(your_model_path, ref_model_path, api_key, max_prompts=100):
             r2 = get_reward_score(client, prompt, ref_responses[i])
             if r1 is not None and r2 is not None:
                 win_labels.append(int(r1 > r2))
-            # time.sleep(0.5)  # Avoid hitting API rate limits
-
+            # time.sleep(0.5) 
         win_rate = sum(win_labels) / len(win_labels)
         print(f"\nFinal Win Rate (your model > reference): {win_rate:.3f} ({sum(win_labels)} / {len(win_labels)})")
 

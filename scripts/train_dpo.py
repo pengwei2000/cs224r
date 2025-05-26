@@ -107,8 +107,8 @@ def finetune_model():
                 optimizer.zero_grad()
             current_lr = optimizer.param_groups[0]["lr"]
             writer.add_scalar("LR", current_lr, global_step)
-            writer.add_scalar("Loss/train", loss.item(), global_step)
-            pbar.set_postfix({"loss": loss.item()})
+            writer.add_scalar("Loss/train", loss.item()*args.gradient_accumulation_steps, global_step)
+            pbar.set_postfix({"loss": loss.item()*args.gradient_accumulation_steps})
             if global_step % 1000 == 0:
                 eval_loss = evaluate(model, ref_model, eval_dataloader, device, global_step, args.beta)
                 print(f"Step {global_step} Eval Loss: {eval_loss:.4f}")
