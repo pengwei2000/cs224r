@@ -24,7 +24,11 @@ with open('../output/confidences_ref.txt', 'r') as f:
 all_confidences = confidences + ref_confidences
 min_conf = min(all_confidences)
 max_conf = max(all_confidences)
-
+# print the 95th percentile of both lists, both positive and negative
+print("95th percentile of DPO confidences:", np.percentile(confidences, 95))
+print("95th percentile of Ref confidences:", np.percentile(ref_confidences, 95))
+print("5th percentile of DPO confidences:", np.percentile(confidences, 5))
+print("5th percentile of Ref confidences:", np.percentile(ref_confidences, 5))
 # Plot both histograms with the same range and bins
 fig, ax = plt.subplots(figsize=(5, 3))
 ax.hist(confidences, bins=100, range=(min_conf, max_conf), alpha=0.5, label='DPO', edgecolor='black')

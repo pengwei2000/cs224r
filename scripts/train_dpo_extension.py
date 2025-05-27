@@ -88,7 +88,6 @@ def finetune_model():
     for epoch in range(num_epochs):
         pbar = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{num_epochs}")
         for batch in pbar:
-            
             batch = {k: v.to(device) for k, v in batch.items() if k != "prompt_id"}
             batch_to_naive = {}
             batch_to_naive["input_ids"] = batch["ref_gen"]
@@ -106,7 +105,9 @@ def finetune_model():
 
                 weight = torch.where(reward_model > 0, args.expectile, args.expectile-1)
                 reward_weight = weight * (reward_model**2)
-                # assert each item in reward_weight is in [-1,1]
+                if args.use_ref_reward:
+                    reward_weight = torch.where(reward_ref > 0, args.expectile, args.expectile-1) * (reward_ref**2)
+
                 assert torch.all(reward_weight >= -1) and torch.all(reward_weight <= 1), "reward_weight is not in [-1,1]"
                 unlearning_loss = args.alpha * (reward_weight * loss_naive).mean()
                 loss = loss_dpo + unlearning_loss
@@ -171,6 +172,7 @@ def parse_args():
     parser.add_argument("--gradient_accumulation_steps", type=int, default=8, help="Number of gradient accumulation steps.")
     parser.add_argument("--reward_clip", type=float, default=2000, help="Clip the reward to this value.")
     parser.add_argument("--expectile", type=float, default=0.1, help="Expectile for the reward weighting.")
+    parser.add_argument("--use_ref_reward", action="store_true", help="Use reference reward for training.")
     return parser.parse_args()
 
 if __name__ == "__main__":
