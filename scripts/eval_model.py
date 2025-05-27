@@ -27,12 +27,12 @@ def get_reward_score(client, prompt, response):
         return None
 
 ### === Evaluation Function === ###
-def evaluate_models(your_model_path, ref_model_path, api_key, max_prompts=100):
+def evaluate_models(your_model_path, ref_model_path, max_prompts=100):
     print("Loading dataset...")
     prompts = load_dataset("HuggingFaceH4/ultrafeedback_binarized", split="test_prefs")["prompt"][:max_prompts]
 
     print("Loading models with VLLM...")
-    sampling_params = SamplingParams(temperature=0.7, max_tokens=989)
+    sampling_params = SamplingParams(temperature=args.temperature, max_tokens=989)
 
     if args.stage == "your_model":
         print("Generating responses from your model...")
@@ -87,6 +87,7 @@ def parse_args():
     # parser.add_argument("--debug_mode", action="store_true", help="Enable debug mode for small dataset.")
     parser.add_argument("--stage", type=str, choices=["your_model", "ref_model", "score"], required=True,
                         help="Stage of evaluation: 'generate_your_model', 'generate_ref_model', or 'score'.")
+    parser.add_argument("--temperature", type=float, default=0.7, help="Temperature for model sampling.")
     return parser.parse_args()
 
 ### === Main Entrypoint === ###
