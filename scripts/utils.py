@@ -36,7 +36,7 @@ def dpo_loss(policy_model, ref_model, batch, beta=0.1):
 
     logratios = beta * ((pi_log_prob_chosen - ref_log_prob_chosen) - (pi_log_prob_rejected - ref_log_prob_rejected))
     loss = -F.logsigmoid(logratios).mean()
-    return loss
+    return loss, ref_log_prob_chosen - ref_log_prob_rejected, pi_log_prob_chosen - pi_log_prob_rejected
 
 def extract_solution(solution_str):
     """Extract the equation from the solution string."""
@@ -155,3 +155,31 @@ def linear_warmup_schedule(step, warmup_steps=150):
     if step < warmup_steps:
         return step / max(1, warmup_steps)
     return 1.0
+
+def compute_naive_batch_loss(model, batch):
+
+    outputs = model(**batch)
+    logits = outputs.logits  # (batch, seq_len, vocab)
+    labels = batch["labels"]  # (batch, seq_len)
+    attention_mask = batch.get("attention_mask", (labels != -100).long())  # handle padding
+
+    # Shift for causal LM
+    shift_logits = logits[:, :-1, :].contiguous()
+    shift_labels = labels[:, 1:].contiguous()
+    shift_mask = attention_mask[:, 1:]
+
+    # Compute token-level loss
+    loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
+    vocab_size = shift_logits.size(-1)
+    batch_size = shift_logits.size(0)
+    token_loss = loss_fct(
+        shift_logits.view(-1, vocab_size),
+        shift_labels.view(-1)
+    ).view(shift_labels.size())  # (batch, seq_len - 1)
+
+    # Mask and reduce to per-sample average
+    masked_token_loss = token_loss * shift_mask
+    token_count = shift_mask.sum(dim=1)  # (batch,)
+    per_sample_loss = masked_token_loss.sum(dim=1) / token_count  # (batch,)
+    assert per_sample_loss.shape == (batch_size,), f"Expected per_sample_loss shape {(batch_size,)}, got {per_sample_loss.shape}"
+    return per_sample_loss

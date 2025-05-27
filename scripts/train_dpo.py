@@ -26,7 +26,7 @@ def evaluate(model, ref_model, dataloader, device, global_step, beta=0.1):
             if i > 500:
                 break
             batch = {k: v.to(device) for k, v in batch.items() if k != "prompt_id"}
-            loss = dpo_loss(model, ref_model, batch, beta=beta)
+            loss, _, _ = dpo_loss(model, ref_model, batch, beta=beta)
             total_loss += loss.item() * batch["input_ids_chosen"].size(0)
             count += batch["input_ids_chosen"].size(0)
     avg_loss = total_loss / count
@@ -93,7 +93,7 @@ def finetune_model():
             
             batch = {k: v.to(device) for k, v in batch.items() if k != "prompt_id"}
             with torch.autocast(device_type='cuda', dtype=torch.float16):
-                loss = dpo_loss(model, ref_model, batch, beta=args.beta)
+                loss, _, _ = dpo_loss(model, ref_model, batch, beta=args.beta)
                 loss = loss / args.gradient_accumulation_steps
             if loss.isnan().any():
                 print("Loss is NaN, global step:", global_step)
@@ -143,7 +143,7 @@ def parse_args():
     parser.add_argument("--save_name", type=str, default=f'{run_name}', help="Name of the model to save.")
     parser.add_argument("--lora", action="store_true", help="Use LoRA for training.")
     parser.add_argument("--resume_from", type=str, default=None, help="Path to resume training from a checkpoint.")
-    parser.add_argument("--beta", type=float, default=0.1, help="Beta parameter for DPO loss.")
+    parser.add_argument("--beta", type=float, default=0.01, help="Beta parameter for DPO loss.")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=8, help="Number of gradient accumulation steps.")
     return parser.parse_args()
 

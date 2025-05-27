@@ -3,3 +3,5 @@ try.py
 *.pyc
 output/
 checkpoints/
+*.out
+*.json

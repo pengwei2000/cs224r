@@ -9,7 +9,7 @@ import os
 from peft import get_peft_model, LoraConfig, TaskType
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
-from utils import dpo_loss, linear_warmup_schedule
+from utils import dpo_loss, linear_warmup_schedule, compute_naive_batch_loss
 from torch.optim.lr_scheduler import LambdaLR
 import argparse
 
@@ -25,12 +25,12 @@ def evaluate(model, ref_model, dataloader, device, global_step, beta=0.1):
         for i, batch in enumerate(dataloader):
             if i > 500:
                 break
-            batch = {k: v.to(device) for k, v in batch.items()}
-            loss = dpo_loss(model, ref_model, batch, beta=beta)
+            batch = {k: v.to(device) for k, v in batch.items() if k != "prompt_id"}
+            loss,_,_ = dpo_loss(model, ref_model, batch, beta=beta)
             total_loss += loss.item() * batch["input_ids_chosen"].size(0)
             count += batch["input_ids_chosen"].size(0)
     avg_loss = total_loss / count
-    writer.add_scalar("Loss/eval", avg_loss, global_step)
+    writer.add_scalar("DPOLoss/eval", avg_loss, global_step)
     model.train()
     return avg_loss
 
@@ -44,7 +44,7 @@ def finetune_model():
         ref_model_path = MODEL_NAME
         model_path = MODEL_NAME
     else:
-        ref_model_path = '../checkpoints/preference_sft_20250520-041117/step_55000'
+        ref_model_path = '../checkpoints/preference_sft_20250525_pref_sft_grad_acc_length_600/step_55000'
         model_path = os.path.join(checkpoint_dir, args.resume_from) if args.resume_from else ref_model_path
     if args.lora:
         base_model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, trust_remote_code=True)
@@ -91,9 +91,26 @@ def finetune_model():
         pbar = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{num_epochs}")
         for batch in pbar:
             
-            batch = {k: v.to(device) for k, v in batch.items()}
+            batch = {k: v.to(device) for k, v in batch.items() if k != "prompt_id"}
+            batch_to_naive = {}
+            batch_to_naive["input_ids"] = batch["ref_gen"]
+            batch_to_naive["attention_mask"] = batch["ref_gen_attention_mask"]
+            batch_to_naive["labels"] = batch["ref_gen_labels"]
             with torch.autocast(device_type='cuda', dtype=torch.float16):
-                loss = dpo_loss(model, ref_model, batch, beta=args.beta)
+                loss_dpo, reward_ref, reward_model = dpo_loss(model, ref_model, batch, beta=args.beta)  # reward_ref and reward_model are in (batch,)
+                loss_naive = compute_naive_batch_loss(model, batch_to_naive)  # naive loss for the batch
+                # clip reward_ref and reward_model to [-2000,2000], and then normalize them to [-1,1]
+                reward_clip = args.reward_clip
+                reward_ref = torch.clamp(reward_ref, -reward_clip, reward_clip)
+                reward_model = torch.clamp(reward_model, -reward_clip, reward_clip)
+                reward_ref = (reward_ref + reward_clip) / (2 * reward_clip) * 2 - 1 # normalize to [-1,1]
+                reward_model = (reward_model + reward_clip) / (2 * reward_clip) * 2 - 1 # normalize to [-1,1]
+
+                weight = torch.where(reward_model > 0, args.expectile, args.expectile-1)
+                reward_weight = weight * (reward_model**2)
+                unlearning_loss = args.alpha * (reward_weight * loss_naive).mean()
+                loss = loss_dpo + unlearning_loss
+
                 loss = loss / args.gradient_accumulation_steps
             if loss.isnan().any():
                 print("Loss is NaN, global step:", global_step)
@@ -107,6 +124,10 @@ def finetune_model():
                 optimizer.zero_grad()
             current_lr = optimizer.param_groups[0]["lr"]
             writer.add_scalar("LR", current_lr, global_step)
+            writer.add_scalar('rewards/ref_batch_mean', reward_ref.mean().item(), global_step)
+            writer.add_scalar('rewards/model_batch_mean', reward_model.mean().item(), global_step)
+            writer.add_scalar('dpo_loss', loss_dpo.item(), global_step)
+            writer.add_scalar('unlearning_loss', unlearning_loss.item(), global_step)
             writer.add_scalar("Loss/train", loss.item()*args.gradient_accumulation_steps, global_step)
             pbar.set_postfix({"loss": loss.item()*args.gradient_accumulation_steps})
             if global_step % 1000 == 0:
@@ -135,7 +156,7 @@ def finetune_model():
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Fine-tune a causal LM with DPO data.")
-    parser.add_argument("--batch_size", type=int, default=4, help="Batch size for training and evaluation.")
+    parser.add_argument("--batch_size", type=int, default=2, help="Batch size for training and evaluation.")
     parser.add_argument("--num_epochs", type=int, default=1, help="Number of epochs to train.")
     parser.add_argument("--learning_rate", type=float, default=1e-6, help="Learning rate for the optimizer.")
     parser.add_argument("--num_workers", type=int, default=1, help="Number of workers for data loading.")
@@ -143,8 +164,11 @@ def parse_args():
     parser.add_argument("--save_name", type=str, default=f'{run_name}', help="Name of the model to save.")
     parser.add_argument("--lora", action="store_true", help="Use LoRA for training.")
     parser.add_argument("--resume_from", type=str, default=None, help="Path to resume training from a checkpoint.")
-    parser.add_argument("--beta", type=float, default=0.1, help="Beta parameter for DPO loss.")
+    parser.add_argument("--alpha", type=float, default=1, help="Alpha parameter for extension DPO loss.")
+    parser.add_argument("--beta", type=float, default=0.01, help="Beta parameter for DPO loss.")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=8, help="Number of gradient accumulation steps.")
+    parser.add_argument("--reward_clip", type=float, default=2000, help="Clip the reward to this value.")
+    parser.add_argument("--expectile", type=float, default=0.1, help="Expectile for the reward weighting.")
     return parser.parse_args()
 
 if __name__ == "__main__":
