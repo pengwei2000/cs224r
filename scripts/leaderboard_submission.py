@@ -19,5 +19,5 @@ with open("leaderboard_submission.json", "w") as f:
         result = {}
         result['prompt'] = prompt
         result['response'] = response
-        f.write(json.dump(result) + '\n')
+        f.write(json.dumps(result) + '\n')
 print("Saved your model responses to your_outputs.json")
