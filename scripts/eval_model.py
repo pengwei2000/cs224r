@@ -81,7 +81,7 @@ def evaluate_models(your_model_path, ref_model_path, api_key, max_prompts=100):
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate RLOO-trained model vs. baseline using Nemotron reward.")
     parser.add_argument("--your_model", type=str, default='../checkpoints/preference_dpo_20250525-005852/step_6000', help="Path to your fine-tuned model (RLOO).")
-    parser.add_argument("--ref_model", type=str, default="../checkpoints/preference_sft_20250520-041117/step_55000", help="Baseline model path or HF hub ID.")
+    parser.add_argument("--ref_model", type=str, default="../checkpoints/preference_sft_20250525_pref_sft_grad_acc_length_600/step_55000", help="Baseline model path or HF hub ID.")
     parser.add_argument("--api_key", type=str, default="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")
     parser.add_argument("--max_prompts", type=int, default=1000, help="Number of prompts to evaluate.")
     # parser.add_argument("--debug_mode", action="store_true", help="Enable debug mode for small dataset.")
