@@ -96,6 +96,5 @@ if __name__ == "__main__":
     evaluate_models(
         your_model_path=args.your_model,
         ref_model_path=args.ref_model,
-        api_key=args.api_key,
         max_prompts=args.max_prompts
     )
