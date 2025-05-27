@@ -15,8 +15,6 @@ import argparse
 
 run_name = datetime.now().strftime("%Y%m%d-%H%M%S")
 
-writer = SummaryWriter(log_dir=os.path.join("../output", "preference_dpo", run_name))
-
 def evaluate(model, ref_model, dataloader, device, global_step, beta=0.1):
     model.eval()
     total_loss = 0
@@ -36,7 +34,7 @@ def evaluate(model, ref_model, dataloader, device, global_step, beta=0.1):
 
 
 def finetune_model():
-    checkpoint_dir = f"../checkpoints/preference_dpo_{args.save_name}"
+    checkpoint_dir = f"../checkpoints/extension_{args.save_name}"
     os.makedirs(checkpoint_dir, exist_ok=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -173,4 +171,5 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
+    writer = SummaryWriter(log_dir=os.path.join("../output", "extension", args.save_name))
     finetune_model()
