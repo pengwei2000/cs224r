@@ -19,7 +19,7 @@ class UltraFeedbackDataset(Dataset):
         self.dataset = load_dataset(DATASET_NAME, split=split)
         self.split = split
         # load json file as the ref_generation
-        with open("C:\\All files\\Stanford\\PhD Courses\\cs224r\\project\\data\\ref_outputs_trainset.json", "r") as f:
+        with open("/atlas2/u/pengwei/cs224r/data/ref_outputs_trainset.json", "r") as f:
             self.ref_generation = json.load(f)  # a list, the idx is aligned with the original dataset
         if debug_mode:
             self.dataset = self.dataset.select(range(2000))
