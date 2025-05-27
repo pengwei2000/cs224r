@@ -19,8 +19,9 @@ class UltraFeedbackDataset(Dataset):
         self.dataset = load_dataset(DATASET_NAME, split=split)
         self.split = split
         # load json file as the ref_generation
-        with open("/atlas2/u/pengwei/cs224r/data/ref_outputs_trainset.json", "r") as f:
-            self.ref_generation = json.load(f)  # a list, the idx is aligned with the original dataset
+        if split == "train_prefs":
+            with open("/atlas2/u/pengwei/cs224r/data/ref_outputs_trainset.json", "r") as f:
+                self.ref_generation = json.load(f)  # a list, the idx is aligned with the original dataset
         if debug_mode:
             self.dataset = self.dataset.select(range(2000))
 
@@ -50,9 +51,10 @@ class UltraFeedbackDataset(Dataset):
         rejected_tokens = tokenizer(rejected_response, truncation=True, max_length=989 - len(prompt_tokens), padding=False)["input_ids"]
         if self.split == "train_prefs":
             ref_gen_tokens = tokenizer(ref_response, truncation=True, max_length=989 - len(prompt_tokens), padding=False)["input_ids"]
+            labels_gen = [-100] * len(prompt_tokens) + ref_gen_tokens
         labels_chosen = [-100] * len(prompt_tokens) + chosen_tokens
         labels_rejected = [-100] * len(prompt_tokens) + rejected_tokens
-        labels_gen = [-100] * len(prompt_tokens) + ref_gen_tokens
+
         if self.split != "train_prefs":
             return {
             "input_ids_chosen": torch.tensor(prompt_tokens+chosen_tokens, dtype=torch.long),
@@ -87,6 +89,17 @@ def collate_fn(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
     input_ids_rejected = torch.nn.utils.rnn.pad_sequence(batch_dict["input_ids_rejected"], batch_first=True, padding_value=tokenizer.pad_token_id)   # batch_first if True, the output will be in B x T x * format, T x B x * otherwise.
     attention_mask_rejected = torch.nn.utils.rnn.pad_sequence(batch_dict["attention_mask_rejected"], batch_first=True, padding_value=0)
     labels_rejected = torch.nn.utils.rnn.pad_sequence(batch_dict["labels_rejected"], batch_first=True, padding_value=-100)   # -100 is the ignore index for loss calculation
+    if "ref_gen" not in batch_dict:
+        # If ref_gen is not in the batch, return only the chosen and rejected fields
+        return {
+            "input_ids_chosen": input_ids_chosen,
+            "attention_mask_chosen": attention_mask_chosen,
+            "labels_chosen": labels_chosen,
+            "input_ids_rejected": input_ids_rejected,
+            "attention_mask_rejected": attention_mask_rejected,
+            "labels_rejected": labels_rejected,
+            "prompt_id": [d["prompt_id"] for d in batch],  # Keep track of the prompt IDs
+        }
     ref_gen = torch.nn.utils.rnn.pad_sequence(batch_dict["ref_gen"], batch_first=True, padding_value=tokenizer.pad_token_id)   # Reference generation tokens
     ref_gen_attention_mask = torch.nn.utils.rnn.pad_sequence(batch_dict["ref_gen_attention_mask"], batch_first=True, padding_value=0)
     ref_gen_labels = torch.nn.utils.rnn.pad_sequence(batch_dict["ref_gen_labels"], batch_first=True, padding_value=-100)   # Reference generation labels
