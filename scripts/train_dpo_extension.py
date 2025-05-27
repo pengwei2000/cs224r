@@ -106,6 +106,8 @@ def finetune_model():
 
                 weight = torch.where(reward_model > 0, args.expectile, args.expectile-1)
                 reward_weight = weight * (reward_model**2)
+                # assert each item in reward_weight is in [-1,1]
+                assert torch.all(reward_weight >= -1) and torch.all(reward_weight <= 1), "reward_weight is not in [-1,1]"
                 unlearning_loss = args.alpha * (reward_weight * loss_naive).mean()
                 loss = loss_dpo + unlearning_loss
 
@@ -122,6 +124,8 @@ def finetune_model():
                 optimizer.zero_grad()
             current_lr = optimizer.param_groups[0]["lr"]
             writer.add_scalar("LR", current_lr, global_step)
+            writer.add_scalar('loss_naive', loss_naive.mean().item(), global_step)
+            writer.add_scalar('reward_weight', reward_weight.mean().item(), global_step)
             writer.add_scalar('rewards/ref_batch_mean', reward_ref.mean().item(), global_step)
             writer.add_scalar('rewards/model_batch_mean', reward_model.mean().item(), global_step)
             writer.add_scalar('dpo_loss', loss_dpo.item(), global_step)
