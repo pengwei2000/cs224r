@@ -4,8 +4,9 @@ from vllm import LLM, SamplingParams
 prompts = []
 with open("ultrafeedback_leaderboard.json", 'r') as f:
     for line in f:
-        prompts.append(line.strip()['prompt'])
-    # data = json.load(f)
+        data = json.loads(line)
+        # print(data['prompt'])
+        prompts.append(data['prompt'])
 
 sampling_params = SamplingParams(temperature=1, max_tokens=989)
 llm = LLM(model='../checkpoints/preference_dpo_20250526_new_sft/step_30000', dtype="auto")
