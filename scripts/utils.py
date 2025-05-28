@@ -202,8 +202,7 @@ def compute_unlikelihood_batch_loss(model, batch):
     log_probs = F.log_softmax(shift_logits, dim=-1)  # (batch, seq_len-1, vocab)
     neg_log_probs = log_probs.gather(dim=2, index=shift_labels.unsqueeze(-1)).squeeze(-1)  # (batch, seq_len-1)
 
-    ul_loss = -torch.log(1.0 - neg_log_probs.exp() + 1e-10)  # (batch, seq_len-1, vocab)
-    ul_loss = ul_loss.sum(dim=-1)  # sum over vocab
+    ul_loss = -torch.log(1.0 - neg_log_probs.exp() + 1e-10)  # (batch, seq_len-1)
     masked_ul_loss = ul_loss * shift_mask
     token_count = shift_mask.sum(dim=1)  # (batch,)
     per_sample_ul_loss = masked_ul_loss.sum(dim=1) / token_count.clamp(min=1)

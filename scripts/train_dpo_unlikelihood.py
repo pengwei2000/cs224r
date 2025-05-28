@@ -187,5 +187,5 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    writer = SummaryWriter(log_dir=os.path.join("../output", "extension", args.save_name))
+    writer = SummaryWriter(log_dir=os.path.join("../output", "extension_unll", args.save_name))
     finetune_model()
