@@ -118,7 +118,7 @@ def finetune_model():
                 else:
                     raise ValueError(f"Unknown weight function: {args.weight_function}")
                 assert torch.all(reward_weight >= 0) and torch.all(reward_weight <= 1), "reward_weight is not in [-1,1]"
-                
+
                 unlearning_loss = args.alpha * (reward_weight * loss_unlikelihood).mean()
                 loss = loss_dpo + unlearning_loss
 
@@ -181,7 +181,6 @@ def parse_args():
     parser.add_argument("--beta", type=float, default=0.01, help="Beta parameter for DPO loss.")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=8, help="Number of gradient accumulation steps.")
     parser.add_argument("--reward_clip", type=float, default=2000, help="Clip the reward to this value.")
-    parser.add_argument("--expectile", type=float, default=0.1, help="Expectile for the reward weighting.")
     parser.add_argument("--use_ref_reward", action="store_true", help="Use reference reward for training.")
     parser.add_argument("--weight_function", type=str, default="quadratic", choices=["quadratic", "linear", "squareroot"], help="Weight function to use for rewards.")
     return parser.parse_args()

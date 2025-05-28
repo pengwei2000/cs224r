@@ -194,12 +194,12 @@ def compute_unlikelihood_batch_loss(model, batch):
     # Shift for causal LM
     shift_logits = logits[:, :-1, :].contiguous()
     shift_labels = labels[:, 1:].contiguous()
-    shift_mask = attention_mask[:, 1:]
+    shift_mask = (shift_labels != -100)
 
+    shift_labels[shift_labels == -100] = 0  # replace -100 with 0 for log softmax
     batch_size = shift_logits.size(0)
 
     log_probs = F.log_softmax(shift_logits, dim=-1)  # (batch, seq_len-1, vocab)
-
     neg_log_probs = log_probs.gather(dim=2, index=shift_labels.unsqueeze(-1)).squeeze(-1)  # (batch, seq_len-1)
 
     ul_loss = -torch.log(1.0 - neg_log_probs.exp() + 1e-10)  # (batch, seq_len-1, vocab)
