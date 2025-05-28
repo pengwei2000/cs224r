@@ -180,6 +180,32 @@ def compute_naive_batch_loss(model, batch):
     # Mask and reduce to per-sample average
     masked_token_loss = token_loss * shift_mask
     token_count = shift_mask.sum(dim=1)  # (batch,)
-    per_sample_loss = masked_token_loss.sum(dim=1) / token_count  # (batch,)
+    per_sample_loss = masked_token_loss.sum(dim=1) / token_count.clamp(min=1)  # (batch,)
     assert per_sample_loss.shape == (batch_size,), f"Expected per_sample_loss shape {(batch_size,)}, got {per_sample_loss.shape}"
     return per_sample_loss
+
+def compute_unlikelihood_batch_loss(model, batch):
+
+    outputs = model(**batch)
+    logits = outputs.logits  # (batch, seq_len, vocab)
+    labels = batch["labels"]  # (batch, seq_len)
+    attention_mask = batch.get("attention_mask", (labels != -100).long())  # handle padding
+
+    # Shift for causal LM
+    shift_logits = logits[:, :-1, :].contiguous()
+    shift_labels = labels[:, 1:].contiguous()
+    shift_mask = attention_mask[:, 1:]
+
+    batch_size = shift_logits.size(0)
+
+    log_probs = F.log_softmax(shift_logits, dim=-1)  # (batch, seq_len-1, vocab)
+
+    neg_log_probs = log_probs.gather(dim=2, index=shift_labels.unsqueeze(-1)).squeeze(-1)  # (batch, seq_len-1)
+
+    ul_loss = -torch.log(1.0 - neg_log_probs.exp() + 1e-10)  # (batch, seq_len-1, vocab)
+    ul_loss = ul_loss.sum(dim=-1)  # sum over vocab
+    masked_ul_loss = ul_loss * shift_mask
+    token_count = shift_mask.sum(dim=1)  # (batch,)
+    per_sample_ul_loss = masked_ul_loss.sum(dim=1) / token_count.clamp(min=1)
+    assert per_sample_ul_loss.shape == (batch_size,), f"Expected per_sample_ul_loss shape {(batch_size,)}, got {per_sample_ul_loss.shape}"
+    return per_sample_ul_loss
