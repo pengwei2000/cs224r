@@ -32,7 +32,7 @@ def evaluate_models(your_model_path, ref_model_path, max_prompts=100):
     prompts = load_dataset("HuggingFaceH4/ultrafeedback_binarized", split="test_prefs")["prompt"][:max_prompts]
 
     print("Loading models with VLLM...")
-    sampling_params = SamplingParams(temperature=args.temperature, max_tokens=989)
+    sampling_params = SamplingParams(temperature=args.temperature, max_tokens=args.max_tokens)
 
     if args.stage == "your_model":
         print("Generating responses from your model...")
@@ -84,6 +84,7 @@ def parse_args():
     parser.add_argument("--ref_model", type=str, default="../checkpoints/preference_sft_20250525_pref_sft_grad_acc_length_600/step_55000", help="Baseline model path or HF hub ID.")
     parser.add_argument("--api_key", type=str, default="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")
     parser.add_argument("--max_prompts", type=int, default=1000, help="Number of prompts to evaluate.")
+    parser.add_argument("--max_tokens", type=int, default=989, help="Maximum tokens for model generation.")
     # parser.add_argument("--debug_mode", action="store_true", help="Enable debug mode for small dataset.")
     parser.add_argument("--stage", type=str, choices=["your_model", "ref_model", "score"], required=True,
                         help="Stage of evaluation: 'generate_your_model', 'generate_ref_model', or 'score'.")
