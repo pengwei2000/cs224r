@@ -208,3 +208,48 @@ def compute_unlikelihood_batch_loss(model, batch):
     per_sample_ul_loss = masked_ul_loss.sum(dim=1) / token_count.clamp(min=1)
     assert per_sample_ul_loss.shape == (batch_size,), f"Expected per_sample_ul_loss shape {(batch_size,)}, got {per_sample_ul_loss.shape}"
     return per_sample_ul_loss
+
+def dpo_contrast_loss(policy_model, ref_model, batch, beta=0.1, alpha=0.1, use_ref_reward=True, weight_function="quadratic", reward_clip=700):
+
+    input_ids_chosen = batch["input_ids_chosen"]
+    attention_mask_chosen = batch["attention_mask_chosen"]
+    labels_chosen = batch["labels_chosen"]
+
+    input_ids_rejected = batch["input_ids_rejected"]
+    attention_mask_rejected = batch["attention_mask_rejected"]
+    labels_rejected = batch["labels_rejected"]
+
+    input_ids_ref = batch["ref_gen"]
+    attention_mask_ref = batch["ref_gen_attention_mask"]
+    labels_ref = batch["ref_gen_labels"]
+
+    pi_log_prob_chosen = sequence_log_prob(policy_model, input_ids_chosen, attention_mask_chosen, labels_chosen)
+    pi_log_prob_rejected = sequence_log_prob(policy_model, input_ids_rejected, attention_mask_rejected, labels_rejected)
+    pi_log_prob_ref_gen = sequence_log_prob(policy_model, input_ids_ref, attention_mask_ref, labels_ref)
+    ref_log_prob_chosen = sequence_log_prob(ref_model, input_ids_chosen, attention_mask_chosen, labels_chosen)
+    ref_log_prob_rejected = sequence_log_prob(ref_model, input_ids_rejected, attention_mask_rejected, labels_rejected)
+    ref_log_prob_ref_gen = sequence_log_prob(ref_model, input_ids_ref, attention_mask_ref, labels_ref)
+
+    logratios = beta * ((pi_log_prob_chosen - ref_log_prob_chosen) - (pi_log_prob_rejected - ref_log_prob_rejected))
+    dpo_loss = -F.logsigmoid(logratios).mean()
+    ################# Above is the same as dpo_loss #################
+    ################# Below is the contrastive loss part #################
+    if use_ref_reward:
+        reward_to_use = ref_log_prob_chosen - ref_log_prob_rejected
+    else:
+        reward_to_use = pi_log_prob_chosen - pi_log_prob_rejected
+    reward_to_use = torch.clamp(reward_to_use, -reward_clip, reward_clip)  # clip to [-reward_clip, reward_clip]
+    reward_to_use = (reward_to_use + reward_clip) / (2 * reward_clip) * 2 - 1  # normalize to [-1,1]
+    weight = torch.where(reward_to_use < 0, 1, 0)
+    if weight_function == "quadratic":
+        reward_weight = weight * (reward_to_use**2)
+    elif weight_function == "linear":
+        reward_weight = weight * (-reward_to_use)
+    elif weight_function == "squareroot":
+        reward_weight = weight * torch.sqrt(torch.abs(reward_to_use))
+    else:
+        raise ValueError(f"Unknown weight function: {weight_function}")
+    assert torch.all(reward_weight >= 0) and torch.all(reward_weight <= 1), "reward_weight is not in [0,1]"
+    contrast_likelihood = - alpha * beta * reward_weight * (pi_log_prob_ref_gen - ref_log_prob_ref_gen)
+    total_loss = -F.logsigmoid(logratios + contrast_likelihood).mean()
+    return dpo_loss, ref_log_prob_chosen - ref_log_prob_rejected, pi_log_prob_chosen - pi_log_prob_rejected, pi_log_prob_ref_gen - ref_log_prob_ref_gen, total_loss, contrast_likelihood.mean(), reward_weight.mean()

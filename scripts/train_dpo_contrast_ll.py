@@ -9,7 +9,7 @@ import os
 from peft import get_peft_model, LoraConfig, TaskType
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
-from utils import dpo_loss, linear_warmup_schedule, compute_unlikelihood_batch_loss
+from utils import dpo_loss, linear_warmup_schedule, dpo_contrast_loss
 from torch.optim.lr_scheduler import LambdaLR
 import argparse
 
@@ -89,45 +89,18 @@ def finetune_model():
         pbar = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{num_epochs}")
         for batch in pbar:
             batch = {k: v.to(device) for k, v in batch.items() if k != "prompt_id"}
-            batch_to_naive = {}
-            batch_to_naive["input_ids"] = batch["ref_gen"]
-            batch_to_naive["attention_mask"] = batch["ref_gen_attention_mask"]
-            batch_to_naive["labels"] = batch["ref_gen_labels"]
             with torch.autocast(device_type='cuda', dtype=torch.float16):
-                loss_dpo, reward_ref, reward_model = dpo_loss(model, ref_model, batch, beta=args.beta)  # reward_ref and reward_model are in (batch,)
-                loss_unlikelihood = compute_unlikelihood_batch_loss(model, batch_to_naive)  # naive loss for the batch
-                # clip reward_ref and reward_model to [-2000,2000], and then normalize them to [-1,1]
-                reward_clip = args.reward_clip
-                reward_ref = torch.clamp(reward_ref, -reward_clip, reward_clip)
-                reward_model = torch.clamp(reward_model, -reward_clip, reward_clip)
-                reward_ref = (reward_ref + reward_clip) / (2 * reward_clip) * 2 - 1 # normalize to [-1,1]
-                reward_model = (reward_model + reward_clip) / (2 * reward_clip) * 2 - 1 # normalize to [-1,1]
-
-                if args.use_ref_reward:
-                    reward_to_use = reward_ref
-                else:
-                    reward_to_use = reward_model
-
-                weight = torch.where(reward_to_use < 0, 1, 0)
-                if args.weight_function == "quadratic":
-                    reward_weight = weight * (reward_to_use**2)
-                elif args.weight_function == "linear":
-                    reward_weight = weight * (-reward_to_use)
-                elif args.weight_function == "squareroot":
-                    reward_weight = weight * torch.sqrt(torch.abs(reward_to_use))
-                else:
-                    raise ValueError(f"Unknown weight function: {args.weight_function}")
-                assert torch.all(reward_weight >= 0) and torch.all(reward_weight <= 1), "reward_weight is not in [-1,1]"
-
-                unlearning_loss = args.alpha * (reward_weight * loss_unlikelihood).mean()
-                loss = loss_dpo + unlearning_loss
-
+                loss_dpo, reward_ref, reward_model, logratio_refgen, loss, contrast_ll, reward_weight = dpo_contrast_loss(model, ref_model, batch, beta=args.beta, alpha=args.alpha, use_ref_reward=args.use_ref_reward, weight_function=args.weight_function, reward_clip=args.reward_clip)
                 loss = loss / args.gradient_accumulation_steps
             if loss.isnan().any():
                 print("Loss is NaN, global step:", global_step)
+            reward_clip = args.reward_clip
+            reward_ref = torch.clamp(reward_ref, -reward_clip, reward_clip)
+            reward_model = torch.clamp(reward_model, -reward_clip, reward_clip)
+            reward_ref = (reward_ref + reward_clip) / (2 * reward_clip) * 2 - 1 # normalize to [-1,1]
+            reward_model = (reward_model + reward_clip) / (2 * reward_clip) * 2 - 1 # normalize to [-1,1]
 
             scaler.scale(loss).backward()
-
             if (global_step + 1) % args.gradient_accumulation_steps == 0:
                 scaler.step(optimizer)
                 lr_scheduler.step()
@@ -135,12 +108,12 @@ def finetune_model():
                 optimizer.zero_grad()
             current_lr = optimizer.param_groups[0]["lr"]
             writer.add_scalar("LR", current_lr, global_step)
-            writer.add_scalar('loss_unlikelihood', loss_unlikelihood.mean().item(), global_step)
-            writer.add_scalar('reward_weight', reward_weight.mean().item(), global_step)
+            writer.add_scalar('contrast_likelihood', contrast_ll.item(), global_step)
+            writer.add_scalar('reward_weight', reward_weight.item(), global_step)
             writer.add_scalar('rewards/ref_batch_mean', reward_ref.mean().item(), global_step)
             writer.add_scalar('rewards/model_batch_mean', reward_model.mean().item(), global_step)
             writer.add_scalar('dpo_loss', loss_dpo.item(), global_step)
-            writer.add_scalar('unlearning_loss', unlearning_loss.item(), global_step)
+            writer.add_scalar('logratio_refgen', logratio_refgen.mean().item(), global_step)
             writer.add_scalar("Loss/train", loss.item()*args.gradient_accumulation_steps, global_step)
             pbar.set_postfix({"loss": loss.item()*args.gradient_accumulation_steps})
             if global_step % 1000 == 0:
