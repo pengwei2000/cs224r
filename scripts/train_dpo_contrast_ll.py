@@ -153,12 +153,12 @@ def parse_args():
     parser.add_argument("--alpha", type=float, default=1, help="Alpha parameter for extension DPO loss.")
     parser.add_argument("--beta", type=float, default=0.01, help="Beta parameter for DPO loss.")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=8, help="Number of gradient accumulation steps.")
-    parser.add_argument("--reward_clip", type=float, default=2000, help="Clip the reward to this value.")
+    parser.add_argument("--reward_clip", type=float, default=700, help="Clip the reward to this value.")
     parser.add_argument("--use_ref_reward", action="store_true", help="Use reference reward for training.")
     parser.add_argument("--weight_function", type=str, default="quadratic", choices=["quadratic", "linear", "squareroot"], help="Weight function to use for rewards.")
     return parser.parse_args()
 
 if __name__ == "__main__":
     args = parse_args()
-    writer = SummaryWriter(log_dir=os.path.join("../output", "extension_unll", args.save_name))
+    writer = SummaryWriter(log_dir=os.path.join("../output", "extension_contrast_ll", args.save_name))
     finetune_model()
