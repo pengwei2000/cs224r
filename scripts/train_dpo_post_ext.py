@@ -47,6 +47,8 @@ def finetune_model():
         model_path = '../checkpoints/extension_20250528_dpo_unll_alpha0dot1_modelreward/step_15000'
     elif args.resume_from == "minll":
         model_path = '../checkpoints/extension_alpha10exp0dot5/step_6000'
+    elif args.resume_from == "unll_linear":
+        model_path = '../checkpoints/extension_20250529_unll_alpha0dot1_modelreward_linearweight/step_17000'
     ref_model = AutoModelForCausalLM.from_pretrained(ref_model_path, trust_remote_code=True)
     model = AutoModelForCausalLM.from_pretrained(model_path, trust_remote_code=True)
     ref_model.config.pad_token_id = tokenizer.pad_token_id
@@ -125,7 +127,7 @@ def parse_args():
     parser.add_argument("--save_name", type=str, default=f'{run_name}', help="Name of the model to save.")
     parser.add_argument("--beta", type=float, default=0.01, help="Beta parameter for DPO loss.")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=8, help="Number of gradient accumulation steps.")
-    parser.add_argument("--resume_from", type=str, default=None, choices=["contrastll", "unll", "minll"], help="Path to resume training from a checkpoint.")
+    parser.add_argument("--resume_from", type=str, default=None, choices=["contrastll", "unll", "minll", "unll_linear"], help="Path to resume training from a checkpoint.")
     return parser.parse_args()
 
 if __name__ == "__main__":

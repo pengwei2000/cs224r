@@ -114,10 +114,10 @@ def finetune_model():
                 elif args.weight_function == "linear":
                     reward_weight = weight * (-reward_to_use)
                 elif args.weight_function == "squareroot":
-                    reward_weight = weight * torch.sqrt(torch.abs(reward_to_use))
+                    reward_weight = weight * torch.sqrt(torch.abs(reward_to_use) + 1e-10)  # add small value to avoid division by zero
                 else:
                     raise ValueError(f"Unknown weight function: {args.weight_function}")
-                assert torch.all(reward_weight >= 0) and torch.all(reward_weight <= 1), "reward_weight is not in [-1,1]"
+                assert torch.all(reward_weight >= 0) and torch.all(reward_weight <= 1), f"reward_weight is not in [0,1], the reward weight is {reward_weight}"
 
                 unlearning_loss = args.alpha * (reward_weight * loss_unlikelihood).mean()
                 loss = loss_dpo + unlearning_loss
