@@ -41,7 +41,7 @@ def finetune_model():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     ref_model_path = '../checkpoints/preference_sft_20250525_pref_sft_grad_acc_length_600/step_55000'
-    if args.resume_from == "contrastll"
+    if args.resume_from == "contrastll":
         model_path = '../checkpoints/extension_20250528_dpo_contrastll_alpha0point1_modelreward/step_4000'
     elif args.resume_from == "unll":
         model_path = '../checkpoints/extension_20250528_dpo_unll_alpha0dot1_modelreward/step_15000'
