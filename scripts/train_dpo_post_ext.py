@@ -40,7 +40,7 @@ def finetune_model():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    ref_model_path = '../checkpoints/preference_sft_20250525_pref_sft_grad_acc_length_600/step_55000'
+    # ref_model_path = '../checkpoints/preference_sft_20250525_pref_sft_grad_acc_length_600/step_55000'
     if args.resume_from == "contrastll":
         model_path = '../checkpoints/extension_20250528_dpo_contrastll_alpha0point1_modelreward/step_4000'
     elif args.resume_from == "unll":
@@ -49,6 +49,7 @@ def finetune_model():
         model_path = '../checkpoints/extension_alpha10exp0dot5/step_6000'
     elif args.resume_from == "unll_linear":
         model_path = '../checkpoints/extension_20250529_unll_alpha0dot1_modelreward_linearweight/step_17000'
+    ref_model_path = model_path
     ref_model = AutoModelForCausalLM.from_pretrained(ref_model_path, trust_remote_code=True)
     model = AutoModelForCausalLM.from_pretrained(model_path, trust_remote_code=True)
     ref_model.config.pad_token_id = tokenizer.pad_token_id
