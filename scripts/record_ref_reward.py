@@ -9,7 +9,7 @@ import argparse
 
 def finetune_model():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    ref_model_path = '../checkpoints/preference_dpo_20250525-2300-gradient_acc_epoch_5/step_30000'
+    ref_model_path = '../checkpoints/preference_dpo_20250531_post_dpo_unll_linear/step_2000'
     ref_model = AutoModelForCausalLM.from_pretrained(ref_model_path, trust_remote_code=True)
     ref_model.config.pad_token_id = tokenizer.pad_token_id
     ref_model.to(device)
@@ -30,7 +30,7 @@ def finetune_model():
         pbar.set_postfix({"confidence": ref_confidence.item()})
         global_step += 1
 
-    output_dir = f"../output/confidences_dpo.txt"
+    output_dir = f"../output/confidences_ext.txt"
     with open(output_dir, 'w') as f:
         for prompt_id, confidence in zip(prompt_ids, confidences):
             f.write(f"{prompt_id}\t{confidence}\n")
