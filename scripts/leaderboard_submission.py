@@ -8,7 +8,7 @@ with open("ultrafeedback_leaderboard.json", 'r') as f:
         # print(data['prompt'])
         prompts.append(data['prompt'])
 
-sampling_params = SamplingParams(temperature=1, max_tokens=1024)
+sampling_params = SamplingParams(temperature=0.7, max_tokens=1024)
 llm = LLM(model='../checkpoints/preference_dpo_20250531_post_dpo_unll_linear/step_2000')
 outputs = llm.generate(prompts, sampling_params)
 your_responses = [o.outputs[0].text.strip() for o in outputs]
