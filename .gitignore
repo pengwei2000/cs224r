@@ -5,3 +5,4 @@ output/
 checkpoints/
 *.out
 *.json
+*.xlsx
