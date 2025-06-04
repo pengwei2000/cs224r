@@ -4,7 +4,7 @@ import re
 import random
 
 
-def sequence_log_prob(model, input_ids, attention_mask, labels):
+def sequence_log_prob(model, input_ids, attention_mask, labels, return_mean=False):
 
     outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
     logits = outputs.logits
@@ -16,8 +16,9 @@ def sequence_log_prob(model, input_ids, attention_mask, labels):
     log_probs = F.log_softmax(logits, dim=-1)
     token_log_probs = torch.gather(log_probs, dim=2, index=labels.unsqueeze(2)).squeeze(2)
     seq_log_probs = (token_log_probs * loss_mask).sum(dim=-1)
+    if return_mean:
+        seq_log_probs = (token_log_probs * loss_mask).sum(-1) / loss_mask.sum(-1)
     return seq_log_probs  # shape: (batch,)
-
 
 def dpo_loss(policy_model, ref_model, batch, beta=0.1):
     input_ids_chosen = batch["input_ids_chosen"]
@@ -37,6 +38,21 @@ def dpo_loss(policy_model, ref_model, batch, beta=0.1):
     logratios = beta * ((pi_log_prob_chosen - ref_log_prob_chosen) - (pi_log_prob_rejected - ref_log_prob_rejected))
     loss = -F.logsigmoid(logratios).mean()
     return loss, ref_log_prob_chosen - ref_log_prob_rejected, pi_log_prob_chosen - pi_log_prob_rejected
+
+def simpo_loss(policy_model, batch, beta=0.1, gamma=1.0):
+    input_ids_chosen = batch["input_ids_chosen"]
+    attention_mask_chosen = batch["attention_mask_chosen"]
+    labels_chosen = batch["labels_chosen"]
+
+    input_ids_rejected = batch["input_ids_rejected"]
+    attention_mask_rejected = batch["attention_mask_rejected"]
+    labels_rejected = batch["labels_rejected"]
+
+    pi_log_prob_chosen = sequence_log_prob(policy_model, input_ids_chosen, attention_mask_chosen, labels_chosen, return_mean=True)
+    pi_log_prob_rejected = sequence_log_prob(policy_model, input_ids_rejected, attention_mask_rejected, labels_rejected, return_mean=True)
+    logratios = beta * (pi_log_prob_chosen - pi_log_prob_rejected) - gamma
+    loss = -F.logsigmoid(logratios).mean()
+    return loss, pi_log_prob_chosen - pi_log_prob_rejected
 
 def extract_solution(solution_str):
     """Extract the equation from the solution string."""
