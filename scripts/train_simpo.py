@@ -74,7 +74,7 @@ def finetune_model():
             
             batch = {k: v.to(device) for k, v in batch.items() if k != "prompt_id"}
             with torch.autocast(device_type='cuda', dtype=torch.float16):
-                loss, _, _ = simpo_loss(model, batch, beta=args.beta, gamma=args.gamma)
+                loss, _ = simpo_loss(model, batch, beta=args.beta, gamma=args.gamma)
                 loss = loss / args.gradient_accumulation_steps
             if loss.isnan().any():
                 print("Loss is NaN, global step:", global_step)
