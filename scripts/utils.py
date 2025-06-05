@@ -17,7 +17,7 @@ def sequence_log_prob(model, input_ids, attention_mask, labels, return_mean=Fals
     token_log_probs = torch.gather(log_probs, dim=2, index=labels.unsqueeze(2)).squeeze(2)
     seq_log_probs = (token_log_probs * loss_mask).sum(dim=-1)
     if return_mean:
-        seq_log_probs = (token_log_probs * loss_mask).sum(-1) / loss_mask.sum(-1)
+        seq_log_probs = (token_log_probs * loss_mask).sum(-1) / loss_mask.sum(-1).clamp(min=1)
     return seq_log_probs  # shape: (batch,)
 
 def dpo_loss(policy_model, ref_model, batch, beta=0.1):
