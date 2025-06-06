@@ -9,15 +9,16 @@ with open("ultrafeedback_leaderboard.json", 'r') as f:
         prompts.append(data['prompt'])
 
 sampling_params = SamplingParams(temperature=0.7, max_tokens=989)
-llm = LLM(model='../checkpoints/extension_20250529_unll_alpha0dot1_modelreward_linearweight/step_17000')
+# llm = LLM(model='../checkpoints/extension_20250529_unll_alpha0dot1_modelreward_linearweight/step_17000')
+llm = LLM(model='../checkpoints/preference_dpo_20250531_post_dpo_unll_linear/step_2000')
 # llm = LLM(model='../checkpoints/preference_dpo_20250526_new_sft/step_30000')
 outputs = llm.generate(prompts, sampling_params)
 your_responses = [o.outputs[0].text.strip() for o in outputs]
 # print(your_response)
-with open("leaderboard_submission_ext.json", "w") as f:
+with open("leaderboard_submission_ext_postdpo.json", "w") as f:
     for prompt, response in zip(prompts, your_responses):
         result = {}
         result['prompt'] = prompt
         result['response'] = response
         f.write(json.dumps(result) + '\n')
-print("Saved your model responses to leaderboard_submission_ext.json")
+print("Saved your model responses to leaderboard_submission_ext_postdpo.json")
