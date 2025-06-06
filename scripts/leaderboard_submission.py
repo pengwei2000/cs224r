@@ -8,7 +8,7 @@ with open("ultrafeedback_leaderboard.json", 'r') as f:
         # print(data['prompt'])
         prompts.append(data['prompt'])
 
-sampling_params = SamplingParams(temperature=0.7, max_tokens=1024)
+sampling_params = SamplingParams(temperature=0.7, max_tokens=989)
 llm = LLM(model='../checkpoints/extension_20250529_unll_alpha0dot1_modelreward_linearweight/step_17000')
 outputs = llm.generate(prompts, sampling_params)
 your_responses = [o.outputs[0].text.strip() for o in outputs]
