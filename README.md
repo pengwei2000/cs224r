@@ -1,4 +1,5 @@
 # DPPO: Direct Preference and Penalization Optimization
+![image](https://github.com/pengwei2000/cs224r/blob/62af7db1f8458ac009576366e0d1d6773c6c9019/paper/Figure.png)
 
 Code for the course project of Stanford CS224R.
 
