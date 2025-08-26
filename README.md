@@ -3,6 +3,8 @@
 
 Code for the course project of Stanford CS224R.
 
+*If your preference is wrong, deconsolidate your belief and forget what you are confident in.*
+
 ## Repository organization
 ```
 ├── data/                                      # Data loading, preprocessing, and transforms
